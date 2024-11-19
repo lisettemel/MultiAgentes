@@ -7,5 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Lisette Melo & Remy Patgher",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "lil-gui": "^0.20.0",
+    "twgl-base.js": "^5.5.3"
+  }
 }

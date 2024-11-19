@@ -1,0 +1,50 @@
+:root {
+  /* Colors */
+  --white: #FCFFFC;
+  --gray: #E5E5E5;
+  --dark_gray: #7C7C7C;
+
+  --red: #990000;
+  --green: #00a100;
+  --yellow: #eac704;
+
+  /* Fonts Weights */
+  --thin: 300;
+  --regular: 400;
+  --bold: 700;
+  --black: 900;
+
+  /* Fonts Families */
+  --primary: 'Roboto', sans-serif;
+  --secondary: 'Arial', sans-serif;
+}
+
+html {
+  font-size: 62.5%; /* 1rem = 10px */
+  box-sizing: border-box;
+  height: 100%;
+}
+
+*,
+*:before,
+*:after {
+  box-sizing: inherit;
+}
+
+body {
+  font-size: 1.8rem;
+  height: 100vh;
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--gray);
+
+}
+
+a {
+  text-decoration: none;
+}
+
+img {
+  width: 100%;
+  height: auto;
+}
