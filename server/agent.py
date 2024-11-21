@@ -28,7 +28,7 @@ class Car(Agent):
         """
         self.move()
 
-class Traffic_Light(Agent):
+class TrafficLight(Agent):
     """
     Traffic light. Where the traffic lights are in the grid.
     """
@@ -62,9 +62,9 @@ class Destination(Agent):
     def step(self):
         pass
 
-class Obstacle(Agent):
+class Building(Agent):
     """
-    Obstacle agent. Just to add obstacles to the grid.
+    Building agent. Just to add builgins to the grid.
     """
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)

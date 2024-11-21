@@ -16,7 +16,7 @@ class CityModel(Model):
         # Load the map dictionary. The dictionary maps the characters in the map file to the corresponding agent.
         dataDictionary = json.load(open("city_files/mapDictionary.json"))
 
-        self.traffic_lights = []
+        self.trafficLights = []
         self.width = width
         self.height = height
 
@@ -37,13 +37,13 @@ class CityModel(Model):
                         self.grid.place_agent(agent, (c, self.height - r - 1))
 
                     elif col in ["S", "s"]:
-                        agent = Traffic_Light(f"tl_{r*self.width+c}", self, False if col == "S" else True, int(dataDictionary[col]))
+                        agent = TrafficLight(f"tl_{r*self.width+c}", self, False if col == "S" else True, int(dataDictionary[col]))
                         self.grid.place_agent(agent, (c, self.height - r - 1))
                         self.schedule.add(agent)
-                        self.traffic_lights.append(agent)
+                        self.trafficLights.append(agent)
 
                     elif col == "#":
-                        agent = Obstacle(f"ob_{r*self.width+c}", self)
+                        agent = Building(f"ob_{r*self.width+c}", self)
                         self.grid.place_agent(agent, (c, self.height - r - 1))
 
                     elif col == "D":
