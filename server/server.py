@@ -35,7 +35,11 @@ def initModel():
                     "height":height
                 })
             else:
-                return jsonify({"message":"Model already initiated"}), 400
+                return jsonify({
+                    "message":"Model already initiated",
+                    "width":width,
+                    "height":height
+                })
 
         except Exception as e:
             print(e)
@@ -46,7 +50,6 @@ def initModel():
 @cross_origin()
 def getCity():
     global cityModel
-
     if request.method == 'GET':
         try:
             # Get the positions of the objects and return them to WebGL in JSON.json.t.
