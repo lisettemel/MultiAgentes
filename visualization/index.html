@@ -28,7 +28,35 @@
     </main>
     <aside class="sidebar">
       <h3>Controls</h3>
-      <p>Contorls Here</p>
+      <div class="controls">
+        <h4>Camera</h4>
+        <div class="field">
+          <label for="cameraX">Camera X</label>
+          <div class="input">
+            <p>-50</p>
+            <input type="range" id="cameraX" min="-50" max="50" step="1">
+            <p>50</p>
+          </div>
+        </div>
+        <div class="field">
+          <label for="cameraY">Camera Y</label>
+          <div class="input">
+            <p>-50</p>
+            <input type="range" id="cameraY" min="-50" max="50" step="1">
+            <p>50</p>
+          </div>
+        </div>
+        <div class="field">
+          <label for="cameraY">Camera Z</label>
+          <div class="input">
+            <p>-50</p>
+            <input type="range" id="cameraZ" min="-50" max="50" step="1">
+            <p>50</p>
+          </div>
+        </div>
+        <button class="reset" type="button">Reset Camera</button>
+        <!-- <h4>Other Set of Controlls</h4> -->
+      </div>
     </aside>
   </div>
   <script defer type="module" src="js/app.js"></script>
