@@ -140,14 +140,64 @@ async function drawScene(gl) {
     requestAnimationFrame(() => drawScene(gl));
 }
 
+function updateCamera(e, gl, axis, cameraValue) {
+    // Update the camera position value for the specified axis
+    cameraValue.textContent = e.target.value;
+
+    // Update the camera position for the specified axis
+    settings.cameraPosition[axis] = parseFloat(e.target.value);
+
+    // Redraw the scene
+    drawScene(gl);
+}
+
 /*
  * Sets up the user interface (UI) for the scene (controllers).
  */
 function setupUI(gl) {
-    // Create the UI elements for each value
-    const gui = new GUI();
+    // Get the range inputs for the camera controls
+    const cameraX = document.getElementById("cameraX");
+    const cameraY = document.getElementById("cameraY");
+    const cameraZ = document.getElementById("cameraZ");
 
-    // Add the camera controls
+    // Get the bottom for reseting the camera position
+    const resetCamera = document.getElementById("resetCamera");
+
+    // Set the initial values for the camera controls
+    cameraX.value = settings.cameraPosition.x;
+    cameraY.value = settings.cameraPosition.y;
+    cameraZ.value = settings.cameraPosition.z;
+
+    // Get the paragraph elements for the camera values
+    const cameraXValue = document.getElementById("cameraXValue");
+    const cameraYValue = document.getElementById("cameraYValue");
+    const cameraZValue = document.getElementById("cameraZValue");
+
+    // Set the initial values for the camera value paragraphs
+    cameraXValue.textContent = settings.cameraPosition.x;
+    cameraYValue.textContent = settings.cameraPosition.y;
+    cameraZValue.textContent = settings.cameraPosition.z;
+
+    // Add event listeners for the camera controls
+    cameraX.addEventListener("input", (e) => updateCamera(e, gl, "x", cameraXValue));
+    cameraY.addEventListener("input", (e) => updateCamera(e, gl, "y", cameraYValue));
+    cameraZ.addEventListener("input", (e) => updateCamera(e, gl, "z", cameraZValue));
+
+    // Add event listener for the reset camera button
+    resetCamera.addEventListener("click", () => {
+        // Reset the camera position values
+        cameraX.value = settings.cameraPosition.x = 20;
+        cameraY.value = settings.cameraPosition.y = 20;
+        cameraZ.value = settings.cameraPosition.z = 20;
+
+        // Update the camera value paragraphs
+        cameraXValue.textContent = settings.cameraPosition.x;
+        cameraYValue.textContent = settings.cameraPosition.y;
+        cameraZValue.textContent = settings.cameraPosition.z;
+
+        // Redraw the scene
+        drawScene(gl);
+    });
 }
 
 /*
@@ -216,25 +266,25 @@ async function getCity() {
 function configureBuffersAndVaos(gl) {
     // Generate the agent and obstacle data
     // carsArrays = generateData(1);
-    buildingsArrays = generateData(1);
-    // roadsArrays = generateData(1);
-    // trafficLightsArrays = generateData(1);
-    // destinationsArrays = generateData(1);
+    buildingsArrays = generateData(1, 'buildings');
+    roadsArrays = generateData(1, 'roads');
+    trafficLightsArrays = generateData(1, 'trafficLights');
+    destinationsArrays = generateData(1, 'destinations');
 
     // Create buffer information from the agent and obstacle data
     // carsBufferInfo = twgl.createBufferInfoFromArrays(gl, carsArrays);
     buildingsBufferInfo = twgl.createBufferInfoFromArrays(gl, buildingsArrays);
-    // roadsBufferInfo = twgl.createBufferInfoFromArrays(gl, roadsArrays);
-    // trafficLightsBufferInfo = twgl.createBufferInfoFromArrays(gl, trafficLightsArrays);
-    // destinationsBufferInfo = twgl.createBufferInfoFromArrays(gl, destinationsArrays);
+    roadsBufferInfo = twgl.createBufferInfoFromArrays(gl, roadsArrays);
+    trafficLightsBufferInfo = twgl.createBufferInfoFromArrays(gl, trafficLightsArrays);
+    destinationsBufferInfo = twgl.createBufferInfoFromArrays(gl, destinationsArrays);
 
     // Create vertex array objects (VAOs) from the buffer information
     // carsVao = twgl.createVAOFromBufferInfo(gl, programInfo, carsBufferInfo);
     buildingsVao = twgl.createVAOFromBufferInfo(gl, programInfo, buildingsBufferInfo);
     console.assert(buildingsVao, "buildingsVao is not initialized");
-    // roadsVao = twgl.createVAOFromBufferInfo(gl, programInfo, roadsBufferInfo);
-    // trafficLightsVao = twgl.createVAOFromBufferInfo(gl, programInfo, trafficLightsBufferInfo);
-    // destinationsVao = twgl.createVAOFromBufferInfo(gl, programInfo, destinationsBufferInfo);
+    roadsVao = twgl.createVAOFromBufferInfo(gl, programInfo, roadsBufferInfo);
+    trafficLightsVao = twgl.createVAOFromBufferInfo(gl, programInfo, trafficLightsBufferInfo);
+    destinationsVao = twgl.createVAOFromBufferInfo(gl, programInfo, destinationsBufferInfo);
 }
 
 (async function () {
@@ -259,14 +309,13 @@ function configureBuffersAndVaos(gl) {
     configureBuffersAndVaos(gl);
 
     // Set controllers for the camera and the scene
-    // setupUI(gl);
+    setupUI(gl);
 
     // Initialize the agents model
     await initAgentsModel();
 
     // Get the city objects
     await getCity();
-
 
     // Draw the scene
     await drawScene(gl);
@@ -288,7 +337,7 @@ function configureBuffersAndVaos(gl) {
  * Draws the buildings in the scene.
  */
 function drawBuildings(gl, viewProjectionMatrix) {
-    // Bind the vertex array object for all the city objects
+    // Bind the vertex array object for the buildings
     gl.bindVertexArray(buildingsVao);
 
     // Set the model matrix for the buildings
@@ -309,7 +358,7 @@ function drawBuildings(gl, viewProjectionMatrix) {
             u_matrix: building.matrix,
         };
         
-        // Set the uniforms for the objects and draw them
+        // Set the uniforms for the buildings and draw them
         twgl.setUniforms(programInfo, uniforms);
         twgl.drawBufferInfo(gl, buildingsBufferInfo);
     });
@@ -318,21 +367,92 @@ function drawBuildings(gl, viewProjectionMatrix) {
  * Draws the roads in the scene.
  */
 function drawRoads(gl, viewProjectionMatrix) {
+    // Bind the vertex array object for the roads
+    gl.bindVertexArray(roadsVao);
 
+    // Set the model matrix for the roads
+    roads.forEach((road) => {
+        // Create the matrix transformations for the roads
+        const roadTrans = twgl.v3.create(...road.position);
+        const roadScale = twgl.v3.create(...road.scale);
+
+        // Calculate the road's matrix
+        road.matrix = twgl.m4.translate(viewProjectionMatrix, roadTrans);
+        road.matrix = twgl.m4.rotateX(road.matrix, road.rotation[0]);
+        road.matrix = twgl.m4.rotateY(road.matrix, road.rotation[1]);
+        road.matrix = twgl.m4.rotateZ(road.matrix, road.rotation[2]);
+        road.matrix = twgl.m4.scale(road.matrix, roadScale);
+
+        // Set the uniforms for the roads
+        let uniforms = {
+            u_matrix: road.matrix,
+        };
+
+        // Set the uniforms for the roads and draw them
+        twgl.setUniforms(programInfo, uniforms);
+        twgl.drawBufferInfo(gl, roadsBufferInfo);
+    });
 }
 /*
  * Draws the traffic lights in the scene.
  */
 function drawTrafficLights(gl, viewProjectionMatrix) {
+    // Bind the vertex array object for the traffic lights
+    gl.bindVertexArray(trafficLightsVao);
 
+    // Set the model matrix for the traffic lights
+    trafficLights.forEach((trafficLight) => {
+        // Create the matrix transformations for the traffic lights
+        const trafficLightTrans = twgl.v3.create(...trafficLight.position);
+        const trafficLightScale = twgl.v3.create(...trafficLight.scale);
+
+        // Calculate the traffic light's matrix
+        trafficLight.matrix = twgl.m4.translate(viewProjectionMatrix, trafficLightTrans);
+        trafficLight.matrix = twgl.m4.rotateX(trafficLight.matrix, trafficLight.rotation[0]);
+        trafficLight.matrix = twgl.m4.rotateY(trafficLight.matrix, trafficLight.rotation[1]);
+        trafficLight.matrix = twgl.m4.rotateZ(trafficLight.matrix, trafficLight.rotation[2]);
+        trafficLight.matrix = twgl.m4.scale(trafficLight.matrix, trafficLightScale);
+
+        // Set the uniforms for the traffic lights
+        let uniforms = {
+            u_matrix: trafficLight.matrix,
+        };
+
+        // Set the uniforms for the traffic lights and draw them
+        twgl.setUniforms(programInfo, uniforms);
+        twgl.drawBufferInfo(gl, trafficLightsBufferInfo);
+    });
 }
 /*
  * Draws the destinations in the scene.
  */
 function drawDestinations(gl, viewProjectionMatrix) {
+    // Bind the vertex array object for the destinations
+    gl.bindVertexArray(destinationsVao);
 
+    // Set the model matrix for the destinations
+    destinations.forEach((destination) => {
+        // Create the matrix transformations for the destinations
+        const destinationTrans = twgl.v3.create(...destination.position);
+        const destinationScale = twgl.v3.create(...destination.scale);
+
+        // Calculate the destination's matrix
+        destination.matrix = twgl.m4.translate(viewProjectionMatrix, destinationTrans);
+        destination.matrix = twgl.m4.rotateX(destination.matrix, destination.rotation[0]);
+        destination.matrix = twgl.m4.rotateY(destination.matrix, destination.rotation[1]);
+        destination.matrix = twgl.m4.rotateZ(destination.matrix, destination.rotation[2]);
+        destination.matrix = twgl.m4.scale(destination.matrix, destinationScale);
+
+        // Set the uniforms for the destinations
+        let uniforms = {
+            u_matrix: destination.matrix,
+        };
+
+        // Set the uniforms for the destinations and draw them
+        twgl.setUniforms(programInfo, uniforms);
+        twgl.drawBufferInfo(gl, destinationsBufferInfo);
+    });
 }
-
 
 
 
@@ -344,7 +464,7 @@ function drawDestinations(gl, viewProjectionMatrix) {
 /*
  * Generates the data for the objects in the scene.
  */
-function generateData(size){
+function generateData(size, type) {
     let arrays =
     {
         a_position: {
@@ -389,7 +509,7 @@ function generateData(size){
             },
         a_color: {
                 numComponents: 4,
-                data: [
+                data: type === 'buildings' ? [
                   // Front face
                     0, 0, 0, 1, // v_1
                     0, 0, 0, 1, // v_1
@@ -420,6 +540,130 @@ function generateData(size){
                     1, 1, 1, 1, // v_6
                     1, 1, 1, 1, // v_6
                     1, 1, 1, 1, // v_6
+                ] : type === 'roads' ? [
+                    // Front face
+                    0, 0, 0, 1, // v_1
+                    0, 0, 0, 1, // v_1
+                    0, 0, 0, 1, // v_1
+                    0, 0, 0, 1, // v_1
+                    // Back Face
+                    0, 0, 0, 1, // v_2
+                    0, 0, 0, 1, // v_2
+                    0, 0, 0, 1, // v_2
+                    0, 0, 0, 1, // v_2
+                    // Top Face
+                    0, 0, 0, 1, // v_3
+                    0, 0, 0, 1, // v_3
+                    0, 0, 0, 1, // v_3
+                    0, 0, 0, 1, // v_3
+                    // Bottom Face
+                    0, 0, 0, 1, // v_4
+                    0, 0, 0, 1, // v_4
+                    0, 0, 0, 1, // v_4
+                    0, 0, 0, 1, // v_4
+                    // Right Face
+                    0, 0, 0, 1, // v_5
+                    0, 0, 0, 1, // v_5
+                    0, 0, 0, 1, // v_5
+                    0, 0, 0, 1, // v_5
+                    // Left Face
+                    0, 0, 0, 1, // v_6
+                    0, 0, 0, 1, // v_6
+                    0, 0, 0, 1, // v_6
+                    0, 0, 0, 1, // v_6
+                ] : type === 'trafficLights' ? [
+                    // Front face
+                    1, 1, 0, 1, // v_1
+                    1, 1, 0, 1, // v_1
+                    1, 1, 0, 1, // v_1
+                    1, 1, 0, 1, // v_1
+                    // Back Face
+                    1, 1, 0, 1, // v_2
+                    1, 1, 0, 1, // v_2
+                    1, 1, 0, 1, // v_2
+                    1, 1, 0, 1, // v_2
+                    // Top Face
+                    1, 1, 0, 1, // v_3
+                    1, 1, 0, 1, // v_3
+                    1, 1, 0, 1, // v_3
+                    1, 1, 0, 1, // v_3
+                    // Bottom Face
+                    1, 1, 0, 1, // v_4
+                    1, 1, 0, 1, // v_4
+                    1, 1, 0, 1, // v_4
+                    1, 1, 0, 1, // v_4
+                    // Right Face
+                    1, 1, 0, 1, // v_5
+                    1, 1, 0, 1, // v_5
+                    1, 1, 0, 1, // v_5
+                    1, 1, 0, 1, // v_5
+                    // Left Face
+                    1, 1, 0, 1, // v_6
+                    1, 1, 0, 1, // v_6
+                    1, 1, 0, 1, // v_6
+                    1, 1, 0, 1, // v_6
+                ] : type === 'destinations' ? [
+                    // Front face
+                    0, 1, 0, 1, // v_1
+                    0, 1, 0, 1, // v_1
+                    0, 1, 0, 1, // v_1
+                    0, 1, 0, 1, // v_1
+                    // Back Face
+                    0, 1, 0, 1, // v_2
+                    0, 1, 0, 1, // v_2
+                    0, 1, 0, 1, // v_2
+                    0, 1, 0, 1, // v_2
+                    // Top Face
+                    0, 1, 0, 1, // v_3
+                    0, 1, 0, 1, // v_3
+                    0, 1, 0, 1, // v_3
+                    0, 1, 0, 1, // v_3
+                    // Bottom Face
+                    0, 1, 0, 1, // v_4
+                    0, 1, 0, 1, // v_4
+                    0, 1, 0, 1, // v_4
+                    0, 1, 0, 1, // v_4
+                    // Right Face
+                    0, 1, 0, 1, // v_5
+                    0, 1, 0, 1, // v_5
+                    0, 1, 0, 1, // v_5
+                    0, 1, 0, 1, // v_5
+                    // Left Face
+                    0, 1, 0, 1, // v_6
+                    0, 1, 0, 1, // v_6
+                    0, 1, 0, 1, // v_6
+                    0, 1, 0, 1, // v_6
+                ] : [
+                    // Front face
+                    0, 0, 0, 1, // v_1
+                    0, 0, 0, 1, // v_1
+                    0, 0, 0, 1, // v_1
+                    0, 0, 0, 1, // v_1
+                    // Back Face
+                    0, 0, 0, 1, // v_2
+                    0, 0, 0, 1, // v_2
+                    0, 0, 0, 1, // v_2
+                    0, 0, 0, 1, // v_2
+                    // Top Face
+                    0, 0, 0, 1, // v_3
+                    0, 0, 0, 1, // v_3
+                    0, 0, 0, 1, // v_3
+                    0, 0, 0, 1, // v_3
+                    // Bottom Face
+                    0, 0, 0, 1, // v_4
+                    0, 0, 0, 1, // v_4
+                    0, 0, 0, 1, // v_4
+                    0, 0, 0, 1, // v_4
+                    // Right Face
+                    0, 0, 0, 1, // v_5
+                    0, 0, 0, 1, // v_5
+                    0, 0, 0, 1, // v_5
+                    0, 0, 0, 1, // v_5
+                    // Left Face
+                    0, 0, 0, 1, // v_6
+                    0, 0, 0, 1, // v_6
+                    0, 0, 0, 1, // v_6
+                    0, 0, 0, 1, // v_6
                 ]
             },
         indices: {
