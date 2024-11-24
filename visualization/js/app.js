@@ -86,7 +86,7 @@ function setupWorldView(gl) {
     // Calculate the aspect ratio of the canvas
     const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
     // Create the projection matrix
-    const projectionMatrix = twgl.m4.perspective(fov, aspect, 1, 200);
+    const projectionMatrix = twgl.m4.perspective(fov, aspect, 1, 500);
     // Set the target position
     const target = [data.width/2, 0, data.height/2];
     // Set the up vector
@@ -181,6 +181,7 @@ async function initAgentsModel() {
  */
 async function getCity() {
     try {
+        console.log("Fetching city data...");
         // Send a GET request to the agent server to retrieve the city objects positions
         let response = await fetch(agent_server_uri + "get-city");
 
@@ -188,11 +189,12 @@ async function getCity() {
         if (response.ok) {
             // Parse the response as JSON
             let result = await response.json();
+            console.log("City data received:", result);
 
             // Create new objects and add them to the object arrays
             result.buildings.forEach((building) => {
-                const newBuilding = new Object3D(building.id, [building.x, building.y, building.z])
-                buildings.push(newBuilding)
+                const newBuilding = new Object3D(building.id, [building.x, building.y, building.z]);
+                buildings.push(newBuilding);
             });
             result.roads.forEach((road) => {
                 const newRoad = new Object3D(road.id, [road.x, road.y, road.z])
@@ -207,31 +209,178 @@ async function getCity() {
                 destinations.push(newDestination)
             });
         }
+        else{
+            console.log("Error fetching city data:", response.status);
+        }
     } catch (error) {
         // Log any errors that occur during the request
         console.log(error);
     }
 }
 
-function configureBuffersAndVaos(gl) {
+async function loadObj(input) {
+    try {
+        let objText;
+
+        if (typeof input === "string" && input.trim().startsWith("v ")) {
+            // Si el input es un contenido OBJ directamente
+            console.log("Contenido OBJ recibido directamente.");
+            objText = input;
+        } else if (typeof input === "string") {
+            // Si el input es un URL, intenta cargarlo
+            console.log(`Intentando cargar desde URL: ${input}`);
+            const response = await fetch(input);
+
+            if (!response.ok) {
+                throw new Error(`Error al cargar el archivo: ${response.statusText} (${response.status})`);
+            }
+
+            objText = await response.text();
+        } else {
+            throw new Error("El input proporcionado no es válido.");
+        }
+
+        // Validar el contenido del archivo
+        if (objText.trim().startsWith("<")) {
+            throw new Error("El archivo cargado parece ser HTML en lugar de un archivo OBJ válido.");
+        }
+
+        console.log("Contenido del archivo OBJ cargado:", objText);
+        const parsedData = parseOBJ(objText);
+        console.log("Datos parseados del OBJ:", parsedData);
+
+        return parsedData;
+    } catch (err) {
+        console.error("Error loading OBJ file:", err);
+    }
+}
+
+
+
+
+async function configureBuffersAndVaos(gl) {
+    try {
+        const buildingData = await loadObj('/assets/models/Edificio2.obj');
+
+        if (!buildingData) {
+            console.error("No se encontraron datos válidos en el archivo OBJ");
+            return;
+        }
+
+        buildingsBufferInfo = twgl.createBufferInfoFromArrays(gl, buildingData);
+        buildingsVao = twgl.createVAOFromBufferInfo(gl, programInfo, buildingsBufferInfo);
+
+        console.log("Buffers and VAOs configured successfully");
+    } catch (err) {
+        console.error("Error in configureBuffersAndVaos:", err);
+    }
+}
+
+
+
+
+function parseOBJ(objText) {
+    const positions = [];
+    const normals = [];
+    const indices = [];
+    const lines = objText.split("\n");
+
+    lines.forEach((line, index) => {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length === 0 || parts[0].startsWith("#")) {
+            console.log(`Línea ignorada en ${index + 1}: ${line}`);
+            return; // Ignorar líneas vacías o comentarios
+        }
+
+        switch (parts[0]) {
+            case "v": // Vértices
+                positions.push(...parts.slice(1).map(Number));
+                break;
+            case "vn": // Normales
+                normals.push(...parts.slice(1).map(Number));
+                break;
+            case "f": // Caras
+                const faceIndices = parts.slice(1).map((part) => {
+                    const [vertexIndex] = part.split("/").map(Number);
+                    return vertexIndex - 1; // 1-indexado a 0-indexado
+                });
+                for (let i = 1; i < faceIndices.length - 1; i++) {
+                    indices.push(faceIndices[0], faceIndices[i], faceIndices[i + 1]);
+                }
+                break;
+            default:
+                console.log(`Línea ignorada en ${index + 1}: ${line}`);
+                break;
+        }
+    });
+
+    console.log("Final Positions:", positions);
+    console.log("Final Normals:", normals);
+    console.log("Final Indices:", indices);
+
+    if (positions.length === 0 || indices.length === 0) {
+        console.error("No se encontraron datos válidos en el archivo OBJ");
+        return null;
+    }
+
+    return {
+        a_position: { numComponents: 3, data: positions },
+        a_normal: { numComponents: 3, data: normals.length > 0 ? normals : [] },
+        indices: { data: indices },
+    };
+}
+
+
+
+
+
+
+
+
+
+
+
+
+function drawBuildings(gl, viewProjectionMatrix) {
+    gl.bindVertexArray(buildingsVao);
+
+    buildings.forEach((building) => {
+        // Crear transformaciones
+        building.matrix = twgl.m4.identity();
+        const position = twgl.v3.create(...building.position);
+        const scale = twgl.v3.create(...building.scale);
+
+        building.matrix = twgl.m4.translate(building.matrix, position);
+        building.matrix = twgl.m4.scale(building.matrix, scale);
+
+        // Enviar las matrices al shader
+        twgl.setUniforms(programInfo, { u_matrix: twgl.m4.multiply(viewProjectionMatrix, building.matrix) });
+
+        // Dibujar el objeto
+        twgl.drawBufferInfo(gl, buildingsBufferInfo);
+    });
+
+
+
+
     // Generate the agent and obstacle data
     // carsArrays = generateData(1);
-    buildingsArrays = generateData(1);
+    // buildingsArrays = generateData(1);
     // roadsArrays = generateData(1);
     // trafficLightsArrays = generateData(1);
     // destinationsArrays = generateData(1);
 
     // Create buffer information from the agent and obstacle data
     // carsBufferInfo = twgl.createBufferInfoFromArrays(gl, carsArrays);
-    buildingsBufferInfo = twgl.createBufferInfoFromArrays(gl, buildingsArrays);
+    // buildingsBufferInfo = twgl.createBufferInfoFromArrays(gl, buildingsArrays);
     // roadsBufferInfo = twgl.createBufferInfoFromArrays(gl, roadsArrays);
     // trafficLightsBufferInfo = twgl.createBufferInfoFromArrays(gl, trafficLightsArrays);
     // destinationsBufferInfo = twgl.createBufferInfoFromArrays(gl, destinationsArrays);
 
     // Create vertex array objects (VAOs) from the buffer information
     // carsVao = twgl.createVAOFromBufferInfo(gl, programInfo, carsBufferInfo);
-    buildingsVao = twgl.createVAOFromBufferInfo(gl, programInfo, buildingsBufferInfo);
-    console.assert(buildingsVao, "buildingsVao is not initialized");
+    // buildingsVao = twgl.createVAOFromBufferInfo(gl, programInfo, buildingsBufferInfo);
+    // console.assert(buildingsVao, "buildingsVao is not initialized");
     // roadsVao = twgl.createVAOFromBufferInfo(gl, programInfo, roadsBufferInfo);
     // trafficLightsVao = twgl.createVAOFromBufferInfo(gl, programInfo, trafficLightsBufferInfo);
     // destinationsVao = twgl.createVAOFromBufferInfo(gl, programInfo, destinationsBufferInfo);
@@ -266,6 +415,8 @@ function configureBuffersAndVaos(gl) {
 
     // Get the city objects
     await getCity();
+    
+    await configureBuffersAndVaos(gl);
 
 
     // Draw the scene
@@ -274,6 +425,9 @@ function configureBuffersAndVaos(gl) {
     if (error !== gl.NO_ERROR) {
         console.error("WebGL error:", error);
     }
+
+
+
 })();
 
 
@@ -287,33 +441,33 @@ function configureBuffersAndVaos(gl) {
 /*
  * Draws the buildings in the scene.
  */
-function drawBuildings(gl, viewProjectionMatrix) {
-    // Bind the vertex array object for all the city objects
-    gl.bindVertexArray(buildingsVao);
+// function drawBuildings(gl, viewProjectionMatrix) {
+//     // Bind the vertex array object for all the city objects
+//     gl.bindVertexArray(buildingsVao);
 
-    // Set the model matrix for the buildings
-    buildings.forEach((building) => {
-        // Create the matrix transformations for the buildings
-        const buildingTrans = twgl.v3.create(...building.position);
-        const buildingScale = twgl.v3.create(...building.scale);
+//     // Set the model matrix for the buildings
+//     buildings.forEach((building) => {
+//         // Create the matrix transformations for the buildings
+//         const buildingTrans = twgl.v3.create(...building.position);
+//         const buildingScale = twgl.v3.create(...building.scale);
 
-        // Calculate the building's matrix
-        building.matrix = twgl.m4.translate(viewProjectionMatrix, buildingTrans);
-        building.matrix = twgl.m4.rotateX(building.matrix, building.rotation[0]);
-        building.matrix = twgl.m4.rotateY(building.matrix, building.rotation[1]);
-        building.matrix = twgl.m4.rotateZ(building.matrix, building.rotation[2]);
-        building.matrix = twgl.m4.scale(building.matrix, buildingScale);
+//         // Calculate the building's matrix
+//         building.matrix = twgl.m4.translate(viewProjectionMatrix, buildingTrans);
+//         building.matrix = twgl.m4.rotateX(building.matrix, building.rotation[0]);
+//         building.matrix = twgl.m4.rotateY(building.matrix, building.rotation[1]);
+//         building.matrix = twgl.m4.rotateZ(building.matrix, building.rotation[2]);
+//         building.matrix = twgl.m4.scale(building.matrix, buildingScale);
         
-        // Set the uniforms for the buildings
-        let uniforms = {
-            u_matrix: building.matrix,
-        };
+//         // Set the uniforms for the buildings
+//         let uniforms = {
+//             u_matrix: building.matrix,
+//         };
         
-        // Set the uniforms for the objects and draw them
-        twgl.setUniforms(programInfo, uniforms);
-        twgl.drawBufferInfo(gl, buildingsBufferInfo);
-    });
-}
+//         // Set the uniforms for the objects and draw them
+//         twgl.setUniforms(programInfo, uniforms);
+//         twgl.drawBufferInfo(gl, buildingsBufferInfo);
+//     });
+// }
 /*
  * Draws the roads in the scene.
  */
