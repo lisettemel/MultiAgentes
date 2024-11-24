@@ -332,7 +332,13 @@ async function getCars() {
 /*
  * Configures the buffers and vertex array objects (VAOs) for the scene.
  */
-function configureBuffersAndVaos(gl) {
+async function configureBuffersAndVaos(gl) {
+
+    // NOTA: Aquí es donde debes mandar a llamar esa función (loadObj) que te regresa los datos del archivo OBJ
+    // Vas a mandar a llamar esa función para cada uno de los archivos OBJ que necesitas cargar (o sea vas a reemplazar la de generateData)
+    // de la línea 341, 342, 343, 344 y 345
+    await loadObj("./Edificio2.obj") // Este es solo un ejemplo de como se llama a la función
+
     // Generate the agent and obstacle data
     carsArrays = generateData(1, 'cars');
     buildingsArrays = generateData(1, 'buildings');
@@ -375,7 +381,7 @@ function configureBuffersAndVaos(gl) {
     }
 
     // Configure the buffers and vertex array objects (VAOs)
-    configureBuffersAndVaos(gl);
+    await configureBuffersAndVaos(gl);
 
     // Set controllers for the camera and the scene
     setupUI(gl);
@@ -565,6 +571,93 @@ function drawCars(gl, viewProjectionMatrix) {
 /*
  * Generates the data for the objects in the scene.
  */
+async function loadObj(input) {
+    try {
+        let objText;
+
+        if (typeof input === "string" && input.trim().startsWith("v ")) {
+            // Si el input es un contenido OBJ directamente
+            console.log("Contenido OBJ recibido directamente.");
+            objText = input;
+        } else if (typeof input === "string") {
+            // Si el input es un URL, intenta cargarlo
+            console.log(`Intentando cargar desde URL: ${input}`);
+            const response = await fetch(input);
+
+            if (!response.ok) {
+                throw new Error(`Error al cargar el archivo: ${response.statusText} (${response.status})`);
+            }
+
+            objText = await response.text();
+            console.log("Contenido del archivo OBJ cargado:", objText);
+        } else {
+            throw new Error("El input proporcionado no es válido.");
+        }
+
+        // Validar el contenido del archivo
+        if (objText.trim().startsWith("<")) {
+            throw new Error("El archivo cargado parece ser HTML en lugar de un archivo OBJ válido.");
+        }
+
+        console.log("Contenido del archivo OBJ cargado:", objText);
+        const parsedData = parseOBJ(objText);
+        console.log("Datos parseados del OBJ:", parsedData);
+
+        return parsedData;
+    } catch (err) {
+        console.error("Error loading OBJ file:", err);
+    }
+}
+function parseOBJ(objText) {
+    const positions = [];
+    const normals = [];
+    const indices = [];
+    const lines = objText.split("\n");
+
+    lines.forEach((line, index) => {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length === 0 || parts[0].startsWith("#")) {
+            console.log(`Línea ignorada en ${index + 1}: ${line}`);
+            return; // Ignorar líneas vacías o comentarios
+        }
+
+        switch (parts[0]) {
+            case "v": // Vértices
+                positions.push(...parts.slice(1).map(Number));
+                break;
+            case "vn": // Normales
+                normals.push(...parts.slice(1).map(Number));
+                break;
+            case "f": // Caras
+                const faceIndices = parts.slice(1).map((part) => {
+                    const [vertexIndex] = part.split("/").map(Number);
+                    return vertexIndex - 1; // 1-indexado a 0-indexado
+                });
+                for (let i = 1; i < faceIndices.length - 1; i++) {
+                    indices.push(faceIndices[0], faceIndices[i], faceIndices[i + 1]);
+                }
+                break;
+            default:
+                console.log(`Línea ignorada en ${index + 1}: ${line}`);
+                break;
+        }
+    });
+
+    console.log("Final Positions:", positions);
+    console.log("Final Normals:", normals);
+    console.log("Final Indices:", indices);
+
+    if (positions.length === 0 || indices.length === 0) {
+        console.error("No se encontraron datos válidos en el archivo OBJ");
+        return null;
+    }
+
+    return {
+        a_position: { numComponents: 3, data: positions },
+        a_normal: { numComponents: 3, data: normals.length > 0 ? normals : [] },
+        indices: { data: indices },
+    };
+}
 function generateData(size, type) {
     let arrays =
     {
