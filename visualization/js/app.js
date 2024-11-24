@@ -104,6 +104,27 @@ function setupWorldView(gl) {
 }
 
 /*
+ * Updates the cars positions by sending a request to the agent server.
+ */
+async function updateScene() {
+    try {
+        // Send a request to the server to update the cars positions
+        let response = await fetch(agent_server_uri + "update") 
+    
+        // Check if the response was successful
+        if(response.ok){
+            // Retrieve the updated cars positions
+            await getCars()
+            // Log a message indicating that the cars have been updated
+            console.log("Cars Updated")
+        }
+    } catch (error) {
+        // Log any errors that occur during the request
+        console.log(error) 
+    }
+}
+
+/*
  * Draws the scene in the WebGL context.
  */
 async function drawScene(gl) {
@@ -127,19 +148,24 @@ async function drawScene(gl) {
     drawRoads(gl, viewProjectionMatrix);
     drawTrafficLights(gl, viewProjectionMatrix);
     drawDestinations(gl, viewProjectionMatrix);
+    drawCars(gl, viewProjectionMatrix);
 
     // Increment the frame count
     frameCount++;
 
     // Update the scene every 30 frames
     if(frameCount%30 == 0){
-      frameCount = 0
+        frameCount = 0
+        await updateScene();
     } 
 
     // Request the next frame
     requestAnimationFrame(() => drawScene(gl));
 }
 
+/*
+ * Updates the camera position for the specified axis.
+ */
 function updateCamera(e, gl, axis, cameraValue) {
     // Update the camera position value for the specified axis
     cameraValue.textContent = e.target.value;
@@ -263,23 +289,66 @@ async function getCity() {
     }
 }
 
+/*
+ * Retrieves the current positions of all cars from the server.
+ */
+async function getCars() {
+    try {
+        // Send a GET request to the agent server to retrieve the cars positions
+        let response = await fetch(agent_server_uri + "get-cars");
+
+        // Check if the response was successful
+        if (response.ok) {
+            // Parse the response as JSON
+            let result = await response.json();
+
+            // Check if the cars array is empty
+            if(cars.length == 0){
+                // Create new objects and add them to the object arrays
+                result.cars.forEach((car) => {
+                    const newCar = new Object3D(car.id, [car.x, car.y, car.z]);
+                    cars.push(newCar);
+                });
+                // Log the cars array
+                // console.log("Cars: ", agents)
+            } else {
+                // Update the positions of existing cars
+                result.cars.forEach((car) => {
+                    const current_car = cars.find((object3d) => object3d.id == car.id);
+                    // Check if the car exists in the cars array
+                    if(current_car != undefined){
+                        // Update the agent's position
+                        current_car.position = [car.x, car.y, car.z];
+                    }
+                });
+            }
+        }
+    } catch (error) {
+        // Log any errors that occur during the request
+        console.log(error);
+    }
+}
+
+/*
+ * Configures the buffers and vertex array objects (VAOs) for the scene.
+ */
 function configureBuffersAndVaos(gl) {
     // Generate the agent and obstacle data
-    // carsArrays = generateData(1);
+    carsArrays = generateData(1, 'cars');
     buildingsArrays = generateData(1, 'buildings');
     roadsArrays = generateData(1, 'roads');
     trafficLightsArrays = generateData(1, 'trafficLights');
     destinationsArrays = generateData(1, 'destinations');
 
     // Create buffer information from the agent and obstacle data
-    // carsBufferInfo = twgl.createBufferInfoFromArrays(gl, carsArrays);
+    carsBufferInfo = twgl.createBufferInfoFromArrays(gl, carsArrays);
     buildingsBufferInfo = twgl.createBufferInfoFromArrays(gl, buildingsArrays);
     roadsBufferInfo = twgl.createBufferInfoFromArrays(gl, roadsArrays);
     trafficLightsBufferInfo = twgl.createBufferInfoFromArrays(gl, trafficLightsArrays);
     destinationsBufferInfo = twgl.createBufferInfoFromArrays(gl, destinationsArrays);
 
     // Create vertex array objects (VAOs) from the buffer information
-    // carsVao = twgl.createVAOFromBufferInfo(gl, programInfo, carsBufferInfo);
+    carsVao = twgl.createVAOFromBufferInfo(gl, programInfo, carsBufferInfo);
     buildingsVao = twgl.createVAOFromBufferInfo(gl, programInfo, buildingsBufferInfo);
     console.assert(buildingsVao, "buildingsVao is not initialized");
     roadsVao = twgl.createVAOFromBufferInfo(gl, programInfo, roadsBufferInfo);
@@ -316,6 +385,9 @@ function configureBuffersAndVaos(gl) {
 
     // Get the city objects
     await getCity();
+
+    // Set the initial cars positions
+    await getCars();
 
     // Draw the scene
     await drawScene(gl);
@@ -453,7 +525,36 @@ function drawDestinations(gl, viewProjectionMatrix) {
         twgl.drawBufferInfo(gl, destinationsBufferInfo);
     });
 }
+/*
+ * Draws the cars in the scene.
+ */
+function drawCars(gl, viewProjectionMatrix) {
+    // Bind the vertex array object for the cars
+    gl.bindVertexArray(carsVao);
 
+    // Set the model matrix for the cars
+    cars.forEach((car) => {
+        // Create the matrix transformations for the cars
+        const carTrans = twgl.v3.create(...car.position);
+        const carScale = twgl.v3.create(...car.scale);
+
+        // Calculate the car's matrix
+        car.matrix = twgl.m4.translate(viewProjectionMatrix, carTrans);
+        car.matrix = twgl.m4.rotateX(car.matrix, car.rotation[0]);
+        car.matrix = twgl.m4.rotateY(car.matrix, car.rotation[1]);
+        car.matrix = twgl.m4.rotateZ(car.matrix, car.rotation[2]);
+        car.matrix = twgl.m4.scale(car.matrix, carScale);
+
+        // Set the uniforms for the cars
+        let uniforms = {
+            u_matrix: car.matrix,
+        };
+
+        // Set the uniforms for the cars and draw them
+        twgl.setUniforms(programInfo, uniforms);
+        twgl.drawBufferInfo(gl, carsBufferInfo);
+    });
+}
 
 
 
@@ -633,6 +734,37 @@ function generateData(size, type) {
                     0, 1, 0, 1, // v_6
                     0, 1, 0, 1, // v_6
                     0, 1, 0, 1, // v_6
+                ] : type === 'cars' ? [
+                    // Front face
+                    0, 1, 1, 1, // v_1
+                    0, 1, 1, 1, // v_1
+                    0, 1, 1, 1, // v_1
+                    0, 1, 1, 1, // v_1
+                    // Back Face
+                    0, 1, 1, 1, // v_2
+                    0, 1, 1, 1, // v_2
+                    0, 1, 1, 1, // v_2
+                    0, 1, 1, 1, // v_2
+                    // Top Face
+                    0, 1, 1, 1, // v_3
+                    0, 1, 1, 1, // v_3
+                    0, 1, 1, 1, // v_3
+                    0, 1, 1, 1, // v_3
+                    // Bottom Face
+                    0, 1, 1, 1, // v_4
+                    0, 1, 1, 1, // v_4
+                    0, 1, 1, 1, // v_4
+                    0, 1, 1, 1, // v_4
+                    // Right Face
+                    0, 1, 1, 1, // v_5
+                    0, 1, 1, 1, // v_5
+                    0, 1, 1, 1, // v_5
+                    0, 1, 1, 1, // v_5
+                    // Left Face
+                    0, 1, 1, 1, // v_6
+                    0, 1, 1, 1, // v_6
+                    0, 1, 1, 1, // v_6
+                    0, 1, 1, 1, // v_6
                 ] : [
                     // Front face
                     0, 0, 0, 1, // v_1

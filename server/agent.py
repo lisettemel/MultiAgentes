@@ -1,4 +1,6 @@
 from mesa import Agent
+import math
+import heapq
 
 class Car(Agent):
     """
@@ -7,7 +9,7 @@ class Car(Agent):
         unique_id: Agent's ID 
         direction: Randomly chosen direction chosen from one of eight directions
     """
-    def __init__(self, unique_id, model):
+    def __init__(self, unique_id, model, pos, destination):
         """
         Creates a new random agent.
         Args:
@@ -15,18 +17,70 @@ class Car(Agent):
             model: Model reference for the agent
         """
         super().__init__(unique_id, model)
+        self.state = "moving"
+        self.destination = destination
+        self.path = []
+        self.path = self.a_star_search(self.model.grid, pos, self.destination.pos)
+
+    def heuristic(self, a, b):
+        """
+        Calculates the distance between A and B.
+        Args:
+            a: Point A
+            b: Point B
+        Returns:
+            The distance between the A and B
+        """
+        return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
+
+    def is_transitable(self, pos):
+        return all(not isinstance(agent, Building) for agent in self.model.grid[pos])
+
+    def a_star_search(self, grid, start, goal):
+        frontier = []
+        heapq.heappush(frontier, (0, start))
+        came_from = {}
+        cost_so_far = {}
+        came_from[start] = None
+        cost_so_far[start] = 0
+        
+        while frontier:
+            current = heapq.heappop(frontier)[1]
+            if current == goal:
+                break
+            neighbors = grid.get_neighborhood(current, moore=True, include_center=False)
+            for next in neighbors:
+                if self.is_transitable(next):
+                    new_cost = cost_so_far[current] + 1
+                    if next not in cost_so_far or new_cost < cost_so_far[next]:
+                        cost_so_far[next] = new_cost
+                        priority = new_cost + self.heuristic(goal, next)
+                        heapq.heappush(frontier, (priority, next))
+                        came_from[next] = current
+        return self.reconstruct_path(came_from, start, goal)
+
+    def reconstruct_path(self, came_from, start, goal):
+        current = goal
+        path = []
+        while current != start:
+            path.append(current)
+            current = came_from[current]
+        path.reverse()
+        return path
 
     def move(self):
         """ 
         Determines if the agent can move in the direction that was chosen
-        """        
-        self.model.grid.move_to_empty(self)
+        """
+        print(self.path)
+        pass
 
     def step(self):
         """ 
         Determines the new direction it will take, and then moves
         """
-        self.move()
+        if self.state == "moving":
+            self.move()
 
 class TrafficLight(Agent):
     """

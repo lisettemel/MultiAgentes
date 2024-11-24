@@ -11,14 +11,13 @@ class CityModel(Model):
         Args:
             N: Number of agents in the simulation
     """
-    def __init__(self, width, height):
+    def __init__(self):
 
         # Load the map dictionary. The dictionary maps the characters in the map file to the corresponding agent.
         dataDictionary = json.load(open("city_files/mapDictionary.json"))
 
         self.trafficLights = []
-        self.width = width
-        self.height = height
+        self.destinations = []
 
         # Load the map file. The map file is a text file where each character represents an agent.
         with open('city_files/2022_base.txt') as baseFile:
@@ -48,8 +47,13 @@ class CityModel(Model):
 
                     elif col == "D":
                         agent = Destination(f"d_{r*self.width+c}", self)
+                        self.destinations.append(agent)
                         self.grid.place_agent(agent, (c, self.height - r - 1))
 
+        random_destination = self.random.choice(self.destinations)
+        first_car = Car(f"c_0001", self, (0, 0), random_destination)
+        self.grid.place_agent(first_car, (0, 0))
+        self.schedule.add(first_car)
         self.running = True
 
     def step(self):

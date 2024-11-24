@@ -1,20 +1,12 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
-from model import CityModel, Building, Road, Destination, TrafficLight
+from model import CityModel, Building, Road, Destination, TrafficLight, Car
 
 
 app = Flask("")
 cors = CORS(app, origins=['http://localhost'])
 
-width = 28
-height = 28
 cityModel = None
-currentStep = 0
-
-with open('city_files/2022_base.txt') as baseFile:
-    lines = baseFile.readlines()
-    width = len(lines[0])-1
-    height = len(lines)
 
 # This route will be used to send the parameters of the simulation to the server.
 # The servers expects a POST request with the parameters in a.json.
@@ -24,28 +16,71 @@ def initModel():
     global cityModel
     if request.method == 'POST':
         try:        
-            print(f"Model parameters:{width, height}")
             # Create the model using the parameters sent by the application
             if cityModel is None:
-                cityModel = CityModel(width, height)
+                cityModel = CityModel()
                 # Return a message to saying that the model was created successfully
                 return jsonify({
                     "message":"Parameters recieved, model initiated.",
-                    "width":width,
-                    "height":height
+                    "width": cityModel.width,
+                    "height": cityModel.height
                 })
             else:
                 return jsonify({
                     "message":"Model already initiated",
-                    "width":width,
-                    "height":height
+                    "width": cityModel.width,
+                    "height": cityModel.height
                 })
 
         except Exception as e:
             print(e)
             return jsonify({"message":"Erorr initializing the model"}), 500
 
-# This route will be used to get the positions of the obstacles
+# This route will be used to update the model
+@app.route('/update', methods=['GET'])
+@cross_origin()
+def updateModel():
+    global cityModel
+    if request.method == 'GET':
+        try:
+            # Update the model and return a message to WebGL saying that the model was updated successfully
+            cityModel.step()
+            return jsonify({
+                'message': f'Model updated to step <replace to step>'
+            })
+        except Exception as e:
+            print(e)
+            return jsonify({"message":"Error during step."}), 500
+
+# This route will be used to get the positions of the cars
+@app.route('/get-cars', methods=['GET'])
+@cross_origin()
+def getCars():
+    global cityModel
+    if request.method == 'GET':
+        try:
+            # Get the positions of the cars and return them to WebGL in JSON.json.
+            # The positions are sent as a list of dictionaries, where each dictionary has the id and position of a car.
+            carPositions = []
+            for agent in cityModel.schedule.agents:
+                if isinstance(agent, Car):
+                    carPositions.append({
+                        "id": str(agent.unique_id), 
+                        "x": agent.pos[0],
+                        "y": 2,
+                        "z": agent.pos[1]
+                    })
+                    
+
+            return jsonify({
+                "cars": carPositions
+            })
+
+        except Exception as e:
+            print(e)
+            return jsonify({"message":"Error with car positions"}), 500
+
+# This route will be used to get the positions of all the city objects
 @app.route('/get-city', methods=['GET'])
 @cross_origin()
 def getCity():
