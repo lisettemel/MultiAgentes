@@ -10,7 +10,7 @@ class Object3D {
         id,
         position = [0, 0, 0],
         rotation = [0, 0, 0],
-        scale = [1, 1, 1]
+        scale = [2, 2, 2]
     ) {
         this.id = id;
         this.position = position;
@@ -127,7 +127,14 @@ async function updateScene() {
 /*
  * Draws the scene in the WebGL context.
  */
-async function drawScene(gl) {
+async function drawScene(gl, buildingModels) {
+
+    if (!buildingModels || Object.keys(buildingModels).length === 0) {
+        console.error("Error: buildingModels no está definido o no se cargaron correctamente.");
+        return;
+    }
+    
+
     // Resize the canvas to match the display size
     twgl.resizeCanvasToDisplaySize(gl.canvas);
     // Set the viewport to match the canvas size
@@ -140,11 +147,20 @@ async function drawScene(gl) {
 
     // Use the program
     gl.useProgram(programInfo.program);
+    const hasTexture = Object.values(buildingModels).some(model =>
+        model.bufferInfo.attribs.a_texcoord &&
+        model.bufferInfo.attribs.a_texcoord.data &&
+        model.bufferInfo.attribs.a_texcoord.data.length > 0
+    );
+
+    gl.uniform1i(gl.getUniformLocation(programInfo.program, "u_hasTexture"), hasTexture ? 1 : 0);
+    gl.uniform4fv(gl.getUniformLocation(programInfo.program, "u_color"), [1.0, 1.0, 1.0, 1.0]); // Blanco
+
     // Set up the view-projection matrix
     const viewProjectionMatrix = setupWorldView(gl);
 
     // Draw all objects in the scene
-    drawBuildings(gl, viewProjectionMatrix);
+    drawBuildings(gl, viewProjectionMatrix, buildingModels);
     drawRoads(gl, viewProjectionMatrix);
     drawTrafficLights(gl, viewProjectionMatrix);
     drawDestinations(gl, viewProjectionMatrix);
@@ -160,7 +176,7 @@ async function drawScene(gl) {
     } 
 
     // Request the next frame
-    requestAnimationFrame(() => drawScene(gl));
+    requestAnimationFrame(() => drawScene(gl, buildingModels));
 }
 
 /*
@@ -174,7 +190,7 @@ function updateCamera(e, gl, axis, cameraValue) {
     settings.cameraPosition[axis] = parseFloat(e.target.value);
 
     // Redraw the scene
-    drawScene(gl);
+    drawScene(gl, buildingModels);
 }
 
 /*
@@ -222,7 +238,7 @@ function setupUI(gl) {
         cameraZValue.textContent = settings.cameraPosition.z;
 
         // Redraw the scene
-        drawScene(gl);
+        drawScene(gl, buildingModels);
     });
 }
 
@@ -267,7 +283,12 @@ async function getCity() {
 
             // Create new objects and add them to the object arrays
             result.buildings.forEach((building) => {
-                const newBuilding = new Object3D(building.id, [building.x, building.y, building.z])
+                const types = ['building1', 'building2', 'building3'];
+                const randomIndex = Math.floor(Math.random() * types.length);
+                const newBuilding = new Object3D(building.id, [building.x, building.y + 3.5, building.z]);
+                // Asegura que el tipo de edificio se asigna correctamente
+                newBuilding.type = types[randomIndex];
+                newBuilding.material = building.material || "Material.001"; // Asignar el material por defecto si no se define
                 buildings.push(newBuilding)
             });
             result.roads.forEach((road) => {
@@ -329,77 +350,269 @@ async function getCars() {
     }
 }
 
+async function loadMTL(mtlFilePath) {
+    try {
+        console.log(`Cargando archivo MTL desde: ${mtlFilePath}`);
+        const response = await fetch(mtlFilePath);
+
+        if (!response.ok) {
+            throw new Error(`Error al cargar el archivo MTL: ${response.statusText}`);
+        }
+
+        const mtlText = await response.text();
+        const materials = parseMTL(mtlText); // Asegúrate de llamar a parseMTL y asignar el resultado a 'materials'
+
+        console.log("Materiales cargados:", materials);
+        return materials; // Devuelve los materiales procesados
+    } catch (error) {
+        console.error("Error cargando archivo MTL:", error);
+        throw error; // Vuelve a lanzar el error para detener el flujo
+    }
+}
+
+
+function parseMTL(mtlText) {
+    const materials = {};
+    let currentMaterial = null;
+
+    const lines = mtlText.split("\n");
+    for (let line of lines) {
+        line = line.trim();
+        if (line.startsWith("#") || line === "") continue;
+
+        const parts = line.split(/\s+/);
+        const keyword = parts[0].toLowerCase();
+
+        switch (keyword) {
+            case "newmtl":
+                currentMaterial = parts[1];
+                materials[currentMaterial] = {};
+                break;
+            case "map_kd": // Textura difusa
+                if (currentMaterial) {
+                    // Especifica la ruta completa o relativa aquí
+                    const basePath = "first.jpg"; 
+                    materials[currentMaterial].diffuseMap = basePath + parts[1];
+                }
+            break;
+            default:
+                // Puedes manejar más propiedades del material aquí si es necesario
+                break;
+        }
+    }
+
+    console.log("Materiales procesados desde el archivo MTL:", materials);
+    return materials; // Devuelve el objeto de materiales
+}
+
+
+async function loadTexture(gl, texturePath) {
+    try {
+        console.log(`Intentando cargar la textura desde: ${texturePath}`);
+        
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+
+        // Placeholder blanco
+        const placeholder = new Uint8Array([255, 255, 255, 255]);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, placeholder);
+
+        const image = new Image();
+        image.src = texturePath;
+
+        // Esperar a que la imagen se cargue
+        await new Promise((resolve, reject) => {
+            image.onload = resolve;
+            image.onerror = () => reject(`Error al cargar la textura: ${texturePath}`);
+        });
+
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+
+        // Configuración para texturas no cuadradas
+        if (
+            (image.width & (image.width - 1)) !== 0 || 
+            (image.height & (image.height - 1)) !== 0
+        ) {
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        } else {
+            gl.generateMipmap(gl.TEXTURE_2D);
+        }
+
+        
+
+        console.log("Textura cargada correctamente:", texturePath);
+        return texture;
+    } catch (error) {
+        console.error("Error cargando la textura:", error);
+
+        // Crear una textura de error (roja)
+        const errorTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, errorTexture);
+        const errorColor = new Uint8Array([255, 0, 0, 255]); // Rojo
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, errorColor);
+
+        return errorTexture;
+    }
+}
+
+
+
 /*
  * Configures the buffers and vertex array objects (VAOs) for the scene.
  */
+let buildingModels = null; 
+
 async function configureBuffersAndVaos(gl) {
+    try {
+        // Cargar los modelos OBJ
+        console.log("Cargando modelos...");
+        const building1 = await loadObj("./Edificio1.obj");
+        const building2 = await loadObj("./Edificio2.obj");
+        const building3 = await loadObj("./Edificio3.obj");
 
-    // NOTA: Aquí es donde debes mandar a llamar esa función (loadObj) que te regresa los datos del archivo OBJ
-    // Vas a mandar a llamar esa función para cada uno de los archivos OBJ que necesitas cargar (o sea vas a reemplazar la de generateData)
-    // de la línea 341, 342, 343, 344 y 345
-    await loadObj("./Edificio2.obj") // Este es solo un ejemplo de como se llama a la función
+        // Verificar que los modelos tengan datos esenciales
+        if (!building1 || !building1.a_position || !building2 || !building2.a_position) {
+            throw new Error("Los modelos de edificios no tienen los datos requeridos (a_position).");
+        }
 
-    // Generate the agent and obstacle data
-    carsArrays = generateData(1, 'cars');
-    buildingsArrays = generateData(1, 'buildings');
-    roadsArrays = generateData(1, 'roads');
-    trafficLightsArrays = generateData(1, 'trafficLights');
-    destinationsArrays = generateData(1, 'destinations');
+        console.log("Modelos cargados correctamente:", { building1, building2 });
 
-    // Create buffer information from the agent and obstacle data
-    carsBufferInfo = twgl.createBufferInfoFromArrays(gl, carsArrays);
-    buildingsBufferInfo = twgl.createBufferInfoFromArrays(gl, buildingsArrays);
-    roadsBufferInfo = twgl.createBufferInfoFromArrays(gl, roadsArrays);
-    trafficLightsBufferInfo = twgl.createBufferInfoFromArrays(gl, trafficLightsArrays);
-    destinationsBufferInfo = twgl.createBufferInfoFromArrays(gl, destinationsArrays);
+        // Cargar los materiales
+        const materials1 = await loadMTL("./Edificio1.mtl");
+        const materials2 = await loadMTL("./Edificio2.mtl");
+        const materials3 = await loadMTL("./Edificio3.mtl");
 
-    // Create vertex array objects (VAOs) from the buffer information
-    carsVao = twgl.createVAOFromBufferInfo(gl, programInfo, carsBufferInfo);
-    buildingsVao = twgl.createVAOFromBufferInfo(gl, programInfo, buildingsBufferInfo);
-    console.assert(buildingsVao, "buildingsVao is not initialized");
-    roadsVao = twgl.createVAOFromBufferInfo(gl, programInfo, roadsBufferInfo);
-    trafficLightsVao = twgl.createVAOFromBufferInfo(gl, programInfo, trafficLightsBufferInfo);
-    destinationsVao = twgl.createVAOFromBufferInfo(gl, programInfo, destinationsBufferInfo);
+        console.log("Materiales cargados para Building1:", materials1);
+        console.log("Materiales cargados para Building2:", materials2);
+        console.log("Materiales cargados para Building3:", materials3);
+
+        // Cargar texturas si están disponibles
+        const textures1 = {};
+        const textures2 = {};
+        const textures3 = {};
+
+        // Cargar texturas para Building1
+        for (let materialName in materials1) {
+            const diffuseMap = materials1[materialName].diffuseMap;
+            if (diffuseMap) {
+                textures1[materialName] = await loadTexture(gl, diffuseMap);
+            }
+        }
+
+         // Cargar texturas para Building2
+         for (let materialName in materials2) {
+            const diffuseMap = materials2[materialName].diffuseMap;
+            if (diffuseMap) {
+                textures2[materialName] = await loadTexture(gl, diffuseMap);
+            }
+        }
+
+        
+
+        console.log("Texturas cargadas para Building1:", textures1);
+        console.log("Texturas cargadas para Building2:", textures2);
+        console.log("Texturas cargadas para Building3:", textures3);
+
+    
+
+        // Crear buffers para las carreteras
+        const roadArrays = generateData(1, 'roads'); // Generar datos para las carreteras
+        roadsBufferInfo = twgl.createBufferInfoFromArrays(gl, roadArrays);
+        roadsVao = twgl.createVAOFromBufferInfo(gl, programInfo, roadsBufferInfo);
+
+        // Configurar datos para los carros
+        const carsArrays = generateData(0.5, "cars"); // Generar datos para los carros
+        carsBufferInfo = twgl.createBufferInfoFromArrays(gl, carsArrays);
+        carsVao = twgl.createVAOFromBufferInfo(gl, programInfo, carsBufferInfo);
+
+         // Configurar datos para destinaciones
+         const destinationsArrays = generateData(1, "destinations"); // Generar datos para destinaciones
+         destinationsBufferInfo = twgl.createBufferInfoFromArrays(gl, destinationsArrays);
+         destinationsVao = twgl.createVAOFromBufferInfo(gl, programInfo, destinationsBufferInfo);
+
+        // Configurar datos para luces de tráfico
+        const trafficLightArrays = generateData(1, 'trafficLights'); // Generar datos
+        trafficLightsBufferInfo = twgl.createBufferInfoFromArrays(gl, trafficLightArrays);
+        trafficLightsVao = twgl.createVAOFromBufferInfo(gl, programInfo, trafficLightsBufferInfo);
+
+        // Crear buffers y VAOs para los modelos
+        const buildingModels = {
+            building1: {
+                bufferInfo: twgl.createBufferInfoFromArrays(gl, building1),
+                vao: twgl.createVAOFromBufferInfo(gl, programInfo, twgl.createBufferInfoFromArrays(gl, building1)),
+                textures: textures1,
+            },
+            building2: {
+                bufferInfo: twgl.createBufferInfoFromArrays(gl, building2),
+                vao: twgl.createVAOFromBufferInfo(gl, programInfo, twgl.createBufferInfoFromArrays(gl, building2)),
+                textures: textures2,
+            },
+            building3: {
+                bufferInfo: twgl.createBufferInfoFromArrays(gl, building3),
+                vao: twgl.createVAOFromBufferInfo(gl, programInfo, twgl.createBufferInfoFromArrays(gl, building3)),
+                textures: textures3,
+            },
+        };
+
+        console.log("Modelos de edificios configurados correctamente:", buildingModels);
+
+        // Retornar los modelos configurados para su uso posterior
+        return buildingModels;
+
+    } catch (error) {
+        console.error("Error al configurar buffers y VAOs:", error);
+        throw error;
+    }
 }
+
+
 
 (async function () {
     // Get the WebGL context
     const canvas = document.getElementById("city-canvas");
-    let gl = canvas.getContext("webgl2");
+    let gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
     if (!gl) {
         console.error("WebGL 2 is not supported. Falling back to WebGL 1.");
         gl = canvas.getContext("webgl");
     }
     if (!gl) {
         console.error("WebGL is not supported on this browser.");
+        return;
     }
 
     // Create the program
     programInfo = twgl.createProgramInfo(gl, [vsGLSL, fsGLSL]);
     if (!gl.getProgramParameter(programInfo.program, gl.LINK_STATUS)) {
         console.error(gl.getProgramInfoLog(programInfo.program));
+        return;
     }
 
-    // Configure the buffers and vertex array objects (VAOs)
-    await configureBuffersAndVaos(gl);
+    try{
+        // Configure the buffers and vertex array objects (VAOs)
+        buildingModels = await configureBuffersAndVaos(gl);
+        if (!buildingModels || Object.keys(buildingModels).length === 0) {
+            throw new Error("Error: buildingModels no está definido o no se cargaron correctamente.");
+        }
 
-    // Set controllers for the camera and the scene
-    setupUI(gl);
+        // Set controllers for the camera and the scene
+        setupUI(gl);
 
-    // Initialize the agents model
-    await initAgentsModel();
+        // Initialize the agents model
+        await initAgentsModel();
 
-    // Get the city objects
-    await getCity();
+        // Get the city objects
+        await getCity();
 
-    // Set the initial cars positions
-    await getCars();
+        // Set the initial cars positions
+        await getCars();
 
-    // Draw the scene
-    await drawScene(gl);
-    let error = gl.getError();
-    if (error !== gl.NO_ERROR) {
-        console.error("WebGL error:", error);
+        // Draw the scene
+        await drawScene(gl, buildingModels);
+    } catch (error) {
+        console.error("Error al cargar los buffers y VAOs:", error);
     }
 })();
 
@@ -414,33 +627,50 @@ async function configureBuffersAndVaos(gl) {
 /*
  * Draws the buildings in the scene.
  */
-function drawBuildings(gl, viewProjectionMatrix) {
-    // Bind the vertex array object for the buildings
-    gl.bindVertexArray(buildingsVao);
+function drawBuildings(gl, viewProjectionMatrix, buildingModels) {
+    Object.keys(buildingModels).forEach((key) => {
+        const model = buildingModels[key];
+        if (!model.vao || !model.bufferInfo) {
+            console.error(`Error: VAO o bufferInfo no definido para ${key}.`);
+            return;
+        }
 
-    // Set the model matrix for the buildings
-    buildings.forEach((building) => {
-        // Create the matrix transformations for the buildings
-        const buildingTrans = twgl.v3.create(...building.position);
-        const buildingScale = twgl.v3.create(...building.scale);
+        gl.bindVertexArray(model.vao);
 
-        // Calculate the building's matrix
-        building.matrix = twgl.m4.translate(viewProjectionMatrix, buildingTrans);
-        building.matrix = twgl.m4.rotateX(building.matrix, building.rotation[0]);
-        building.matrix = twgl.m4.rotateY(building.matrix, building.rotation[1]);
-        building.matrix = twgl.m4.rotateZ(building.matrix, building.rotation[2]);
-        building.matrix = twgl.m4.scale(building.matrix, buildingScale);
-        
-        // Set the uniforms for the buildings
-        let uniforms = {
-            u_matrix: building.matrix,
-        };
-        
-        // Set the uniforms for the buildings and draw them
-        twgl.setUniforms(programInfo, uniforms);
-        twgl.drawBufferInfo(gl, buildingsBufferInfo);
+        buildings.forEach((building) => {
+            if (building.type === key) { // Dibujar solo edificios del tipo correspondiente
+                const buildingTrans = twgl.v3.create(...building.position);
+                const buildingScale = twgl.v3.create(...building.scale);
+
+                building.matrix = twgl.m4.translate(viewProjectionMatrix, buildingTrans);
+                building.matrix = twgl.m4.rotateX(building.matrix, building.rotation[0]);
+                building.matrix = twgl.m4.rotateY(building.matrix, building.rotation[1]);
+                building.matrix = twgl.m4.rotateZ(building.matrix, building.rotation[2]);
+                building.matrix = twgl.m4.scale(building.matrix, buildingScale);
+
+                // Usar la textura basada en el material del edificio
+                const texture = model.textures[building.material] || null;
+
+                const normalMatrix = twgl.m4.transpose(twgl.m4.inverse(building.matrix));
+
+                const uniforms = {
+                    u_matrix: building.matrix,
+                    u_normalMatrix: normalMatrix,
+                    u_lightDirection: twgl.v3.normalize([settings.lightPosition.x, settings.lightPosition.y, settings.lightPosition.z]),
+                    u_ambientColor: settings.ambientColor,
+                    u_diffuseColor: settings.diffuseColor,
+                    u_diffuseMap: texture,
+                };
+
+                twgl.setUniforms(programInfo, uniforms);
+                twgl.drawBufferInfo(gl, model.bufferInfo);
+            }
+        });
     });
 }
+
+
+
 /*
  * Draws the roads in the scene.
  */
@@ -611,15 +841,14 @@ async function loadObj(input) {
 function parseOBJ(objText) {
     const positions = [];
     const normals = [];
+    const texcoords = [];
     const indices = [];
+    const texcoordIndices = [];
     const lines = objText.split("\n");
 
-    lines.forEach((line, index) => {
+    lines.forEach((line) => {
         const parts = line.trim().split(/\s+/);
-        if (parts.length === 0 || parts[0].startsWith("#")) {
-            console.log(`Línea ignorada en ${index + 1}: ${line}`);
-            return; // Ignorar líneas vacías o comentarios
-        }
+        if (parts.length === 0 || parts[0].startsWith("#")) return;
 
         switch (parts[0]) {
             case "v": // Vértices
@@ -628,36 +857,67 @@ function parseOBJ(objText) {
             case "vn": // Normales
                 normals.push(...parts.slice(1).map(Number));
                 break;
+            case "vt": // Coordenadas de textura
+                texcoords.push(...parts.slice(1).map(Number));
+                break;
             case "f": // Caras
                 const faceIndices = parts.slice(1).map((part) => {
                     const [vertexIndex] = part.split("/").map(Number);
-                    return vertexIndex - 1; // 1-indexado a 0-indexado
+                    return vertexIndex - 1;
                 });
                 for (let i = 1; i < faceIndices.length - 1; i++) {
                     indices.push(faceIndices[0], faceIndices[i], faceIndices[i + 1]);
                 }
                 break;
-            default:
-                console.log(`Línea ignorada en ${index + 1}: ${line}`);
-                break;
+        }
+       
+    });
+
+    if (positions.length === 0 || indices.length === 0) {
+        throw new Error("El archivo OBJ no contiene datos válidos de vértices o índices.");
+    }
+
+    const alignedTexcoords = [];
+    indices.forEach((index, i) => {
+        if (texcoordIndices.length > 0) {
+            alignedTexcoords.push(texcoords[texcoordIndices[i] * 2] || 0);
+            alignedTexcoords.push(texcoords[texcoordIndices[i] * 2 + 1] || 0);
+        } else {
+            alignedTexcoords.push(0); // Coordenada de textura predeterminada
+            alignedTexcoords.push(0);
         }
     });
 
-    console.log("Final Positions:", positions);
-    console.log("Final Normals:", normals);
-    console.log("Final Indices:", indices);
+    // Centrar el modelo al origen
+    const vertexCount = positions.length / 3;
+    const center = [0, 0, 0];
+    for (let i = 0; i < positions.length; i += 3) {
+        center[0] += positions[i];
+        center[1] += positions[i + 1];
+        center[2] += positions[i + 2];
+    }
+    center[0] /= vertexCount;
+    center[1] /= vertexCount;
+    center[2] /= vertexCount;
 
-    if (positions.length === 0 || indices.length === 0) {
-        console.error("No se encontraron datos válidos en el archivo OBJ");
-        return null;
+    for (let i = 0; i < positions.length; i += 3) {
+        positions[i] -= center[0];
+        positions[i + 1] -= center[1];
+        positions[i + 2] -= center[2];
     }
 
     return {
         a_position: { numComponents: 3, data: positions },
         a_normal: { numComponents: 3, data: normals.length > 0 ? normals : [] },
+        a_texcoord: { numComponents: 2, data: alignedTexcoords },
         indices: { data: indices },
+        
     };
+
+
+
 }
+
 function generateData(size, type) {
     let arrays =
     {
@@ -905,3 +1165,5 @@ function generateData(size, type) {
     };
     return arrays;
 }
+
+
