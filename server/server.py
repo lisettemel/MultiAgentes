@@ -15,7 +15,7 @@ cityModel = None
 def initModel():
     global cityModel
     if request.method == 'POST':
-        try:        
+        try:
             # Create the model using the parameters sent by the application
             if cityModel is None:
                 cityModel = CityModel()
@@ -97,9 +97,9 @@ def getCity():
                 for agent in agents:
                     if isinstance(agent, Building):
                         buildingPositions.append({
-                            "id": str(agent.unique_id), 
-                            "x": x, 
-                            "y":1, 
+                            "id": str(agent.unique_id),
+                            "x": x,
+                            "y":1,
                             "z":z
                         })
                     elif isinstance(agent, Road):

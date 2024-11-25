@@ -50,7 +50,8 @@ class CityModel(Model):
                         self.destinations.append(agent)
                         self.grid.place_agent(agent, (c, self.height - r - 1))
 
-        random_destination = self.random.choice(self.destinations)
+        # random_destination = self.random.choice(self.destinations)
+        random_destination = self.destinations[0]
         first_car = Car(f"c_0001", self, (0, 0), random_destination)
         self.grid.place_agent(first_car, (0, 0))
         self.schedule.add(first_car)
