@@ -1,13 +1,31 @@
 #version 300 es
+
+precision mediump float;
+
+// Atributos
 in vec4 a_position;
-in vec4 a_color;
+in vec3 a_normal;
+in vec2 a_texcoord;
 
-uniform mat4 u_transforms;
+// Uniformes
 uniform mat4 u_matrix;
+uniform mat4 u_normalMatrix;
 
-out vec4 v_color;
+// Varyings (para pasar al fragment shader)
+out vec3 v_normal;
+out vec3 v_position;
+out vec2 v_texcoord;
 
 void main() {
-gl_Position = u_matrix * a_position;
-v_color = a_color;
+    // Calcula la posición del vértice en el espacio del mundo
+    gl_Position = u_matrix * a_position;
+
+    // Calcula la normal transformada al espacio del mundo
+    v_normal = mat3(u_normalMatrix) * a_normal;
+
+    // Posición en el espacio del mundo (sin perspectiva)
+    v_position = (u_matrix * a_position).xyz;
+
+    // Pasar las coordenadas de textura
+    v_texcoord = a_texcoord;
 }
