@@ -375,90 +375,41 @@ function parseMTL(mtlText) {
     const materials = {};
     let currentMaterial = null;
 
-    const lines = mtlText.split("\n");
-    for (let line of lines) {
-        line = line.trim();
-        if (line.startsWith("#") || line === "") continue;
+    mtlText.split("\n").forEach((line) => {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length === 0 || parts[0].startsWith("#")) return;
 
-        const parts = line.split(/\s+/);
         const keyword = parts[0].toLowerCase();
-
         switch (keyword) {
             case "newmtl":
                 currentMaterial = parts[1];
-                materials[currentMaterial] = {};
+                materials[currentMaterial] = {
+                    ambient: [0.2, 0.2, 0.2],
+                    diffuse: [0.8, 0.8, 0.8],
+                    specular: [1.0, 1.0, 1.0],
+                    shininess: 35.0,
+                };
                 break;
-            case "map_kd": // Textura difusa
-                if (currentMaterial) {
-                    // Especifica la ruta completa o relativa aquí
-                    const basePath = "first.jpg"; 
-                    materials[currentMaterial].diffuseMap = basePath + parts[1];
-                }
-            break;
-            default:
-                // Puedes manejar más propiedades del material aquí si es necesario
+            case "ka":
+                if (currentMaterial) materials[currentMaterial].ambient = parts.slice(1).map(Number);
+                break;
+            case "kd":
+                if (currentMaterial) materials[currentMaterial].diffuse = parts.slice(1).map(Number);
+                break;
+            case "ks":
+                if (currentMaterial) materials[currentMaterial].specular = parts.slice(1).map(Number);
+                break;
+            case "ns":
+                if (currentMaterial) materials[currentMaterial].shininess = parseFloat(parts[1]);
                 break;
         }
-    }
+    });
 
-    console.log("Materiales procesados desde el archivo MTL:", materials);
-    return materials; // Devuelve el objeto de materiales
+    return materials;
 }
 
 
-async function loadTexture(gl, texturePath) {
-    try {
-        console.log(`Intentando cargar la textura desde: ${texturePath}`);
-        
-        const texture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-
-        // Placeholder blanco
-        const placeholder = new Uint8Array([255, 255, 255, 255]);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, placeholder);
-
-        const image = new Image();
-        image.src = texturePath;
-
-        // Esperar a que la imagen se cargue
-        await new Promise((resolve, reject) => {
-            image.onload = resolve;
-            image.onerror = () => reject(`Error al cargar la textura: ${texturePath}`);
-        });
-
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-
-        // Configuración para texturas no cuadradas
-        if (
-            (image.width & (image.width - 1)) !== 0 || 
-            (image.height & (image.height - 1)) !== 0
-        ) {
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        } else {
-            gl.generateMipmap(gl.TEXTURE_2D);
-        }
-
-        
-
-        console.log("Textura cargada correctamente:", texturePath);
-        return texture;
-    } catch (error) {
-        console.error("Error cargando la textura:", error);
-
-        // Crear una textura de error (roja)
-        const errorTexture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, errorTexture);
-        const errorColor = new Uint8Array([255, 0, 0, 255]); // Rojo
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, errorColor);
-
-        return errorTexture;
-    }
-}
-
-
+// ******************************** drawings ********************************
 
 /*
  * Configures the buffers and vertex array objects (VAOs) for the scene.
@@ -478,7 +429,7 @@ async function configureBuffersAndVaos(gl) {
             throw new Error("Los modelos de edificios no tienen los datos requeridos (a_position).");
         }
 
-        console.log("Modelos cargados correctamente:", { building1, building2 });
+        console.log("Modelos cargados correctamente:", { building1, building2, building3 });
 
         // Cargar los materiales
         const materials1 = await loadMTL("./Edificio1.mtl");
@@ -488,34 +439,6 @@ async function configureBuffersAndVaos(gl) {
         console.log("Materiales cargados para Building1:", materials1);
         console.log("Materiales cargados para Building2:", materials2);
         console.log("Materiales cargados para Building3:", materials3);
-
-        // Cargar texturas si están disponibles
-        const textures1 = {};
-        const textures2 = {};
-        const textures3 = {};
-
-        // Cargar texturas para Building1
-        for (let materialName in materials1) {
-            const diffuseMap = materials1[materialName].diffuseMap;
-            if (diffuseMap) {
-                textures1[materialName] = await loadTexture(gl, diffuseMap);
-            }
-        }
-
-         // Cargar texturas para Building2
-         for (let materialName in materials2) {
-            const diffuseMap = materials2[materialName].diffuseMap;
-            if (diffuseMap) {
-                textures2[materialName] = await loadTexture(gl, diffuseMap);
-            }
-        }
-
-        
-
-        console.log("Texturas cargadas para Building1:", textures1);
-        console.log("Texturas cargadas para Building2:", textures2);
-        console.log("Texturas cargadas para Building3:", textures3);
-
     
 
         // Crear buffers para las carreteras
@@ -543,17 +466,17 @@ async function configureBuffersAndVaos(gl) {
             building1: {
                 bufferInfo: twgl.createBufferInfoFromArrays(gl, building1),
                 vao: twgl.createVAOFromBufferInfo(gl, programInfo, twgl.createBufferInfoFromArrays(gl, building1)),
-                textures: textures1,
+                materials: materials1,
             },
             building2: {
                 bufferInfo: twgl.createBufferInfoFromArrays(gl, building2),
                 vao: twgl.createVAOFromBufferInfo(gl, programInfo, twgl.createBufferInfoFromArrays(gl, building2)),
-                textures: textures2,
+                materials: materials2,
             },
             building3: {
                 bufferInfo: twgl.createBufferInfoFromArrays(gl, building3),
                 vao: twgl.createVAOFromBufferInfo(gl, programInfo, twgl.createBufferInfoFromArrays(gl, building3)),
-                textures: textures3,
+                materials: materials3,
             },
         };
 
@@ -638,7 +561,7 @@ function drawBuildings(gl, viewProjectionMatrix, buildingModels) {
         gl.bindVertexArray(model.vao);
 
         buildings.forEach((building) => {
-            if (building.type === key) { // Dibujar solo edificios del tipo correspondiente
+            if (building.type === key) {
                 const buildingTrans = twgl.v3.create(...building.position);
                 const buildingScale = twgl.v3.create(...building.scale);
 
@@ -648,19 +571,36 @@ function drawBuildings(gl, viewProjectionMatrix, buildingModels) {
                 building.matrix = twgl.m4.rotateZ(building.matrix, building.rotation[2]);
                 building.matrix = twgl.m4.scale(building.matrix, buildingScale);
 
-                // Usar la textura basada en el material del edificio
-                const texture = model.textures[building.material] || null;
+                // Obtener el material correspondiente
+                const material = model.materials[building.material] || {
+                    ambient: [0.2, 0.2, 0.2, 1.0],
+                    diffuse: [0.8, 0.8, 0.8, 1.0],
+                    specular: [1.0, 1.0, 1.0, 1.0],
+                    shininess: 32.0,
+                };
+
+                // Verificar que las propiedades del material tengan 4 componentes
+                const ambient = material.ambient.length === 4 ? material.ambient : [0.2, 0.2, 0.2, 1.0];
+                const diffuse = material.diffuse.length === 4 ? material.diffuse : [0.8, 0.8, 0.8, 1.0];
+                const specular = material.specular.length === 4 ? material.specular : [1.0, 1.0, 1.0, 1.0];
 
                 const normalMatrix = twgl.m4.transpose(twgl.m4.inverse(building.matrix));
 
                 const uniforms = {
                     u_matrix: building.matrix,
                     u_normalMatrix: normalMatrix,
-                    u_lightDirection: twgl.v3.normalize([settings.lightPosition.x, settings.lightPosition.y, settings.lightPosition.z]),
-                    u_ambientColor: settings.ambientColor,
-                    u_diffuseColor: settings.diffuseColor,
-                    u_diffuseMap: texture,
+                    u_lightDirection: twgl.v3.normalize([
+                        settings.lightPosition.x,
+                        settings.lightPosition.y,
+                        settings.lightPosition.z,
+                    ]),
+                    u_ambientColor: ambient,
+                    u_diffuseColor: diffuse,
+                    u_specularColor: specular,
+                    u_shininess: material.shininess,
+                    u_hasTexture: 0, // No se están usando texturas
                 };
+            
 
                 twgl.setUniforms(programInfo, uniforms);
                 twgl.drawBufferInfo(gl, model.bufferInfo);
@@ -668,6 +608,7 @@ function drawBuildings(gl, viewProjectionMatrix, buildingModels) {
         });
     });
 }
+
 
 
 
