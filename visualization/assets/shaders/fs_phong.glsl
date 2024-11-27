@@ -15,7 +15,7 @@ uniform float u_lightIntensity; // Intensidad de la luz
 in vec3 v_normal;
 in vec3 v_position;
 in vec4 v_color; // Color del vértice
-in vec2 v_texcoord;
+
 
 // Salida del color
 out vec4 outColor;
@@ -35,7 +35,7 @@ void main() {
     vec4 ambient = u_ambientColor * v_color ;
 
     // Componente difusa (modelo de Lambert)
-    float diff = max(dot(normal, lightDir), 2.0);
+    float diff = max(dot(normal, lightDir), 0.0);
     vec4 diffuse = u_diffuseColor * diff * v_color * u_lightIntensity * attenuation;
 
     // Componente especular (modelo de Phong)

@@ -78,6 +78,7 @@ const settings = {
     lightIntensity: 1.0,
 };
 
+
 /*
  * Sets up the view-projection matrix for the scene.
  */
@@ -413,16 +414,25 @@ function parseMTL(mtlText) {
             case "ka": // Ambient component
                 if (currentMaterial) {
                     materials[currentMaterial].ambient = parts.slice(1).map(Number);
+                    if (materials[currentMaterial].ambient.length === 3) {
+                        materials[currentMaterial].ambient.push(1.0); // Añadir componente alfa
+                    }
                 }
                 break;
             case "kd": // Diffuse component
                 if (currentMaterial) {
                     materials[currentMaterial].diffuse = parts.slice(1).map(Number);
+                    if (materials[currentMaterial].diffuse.length === 3) {
+                        materials[currentMaterial].diffuse.push(1.0);
+                    }
                 }
                 break;
             case "ks": // Specular component
                 if (currentMaterial) {
                     materials[currentMaterial].specular = parts.slice(1).map(Number);
+                    if (materials[currentMaterial].specular.length === 3) {
+                        materials[currentMaterial].specular.push(1.0);
+                    }
                 }
                 break;
             case "ns": // Shininess
@@ -430,11 +440,13 @@ function parseMTL(mtlText) {
                     materials[currentMaterial].shininess = parseFloat(parts[1]);
                 }
                 break;
+            // Añadir otros casos si es necesario (por ejemplo, d para opacidad)
         }
     });
 
     return materials;
 }
+
 
 async function combineObjWithMtl(objPath, mtlPath) {
     try {
@@ -452,6 +464,27 @@ async function combineObjWithMtl(objPath, mtlPath) {
             throw new Error(`No se pudo cargar el archivo MTL en la ruta: ${mtlPath}`);
         }
 
+        // Asignar colores a los vértices basados en el material
+        const materialName = Object.keys(mtlData)[0]; // Supongamos que hay un material
+        const material = mtlData[materialName];
+
+        if (material && material.diffuse) {
+            const numVertices = objData.a_position.data.length / 3;
+            const colorData = [];
+            for (let i = 0; i < numVertices; i++) {
+                colorData.push(...material.diffuse);
+            }
+            objData.a_color = { numComponents: 4, data: colorData };
+        } else {
+            // Asignar un color por defecto si no hay material
+            const numVertices = objData.a_position.data.length / 4;
+            const colorData = [];
+            for (let i = 0; i < numVertices; i++) {
+                colorData.push(1.0, 1.0, 1.0);
+            }
+            objData.a_color = { numComponents: 4, data: colorData };
+        }
+
         // Combinar geometría y materiales en un modelo
         const model = {
             geometry: objData,
@@ -465,6 +498,7 @@ async function combineObjWithMtl(objPath, mtlPath) {
         throw error;
     }
 }
+
 
 
 
@@ -512,7 +546,7 @@ async function configureBuffersAndVaos(gl) {
 
         // Crear buffers y VAOs para los modelos
         const buildingModels = {
-            bbuilding1: {
+            building1: {
                 bufferInfo: twgl.createBufferInfoFromArrays(gl, building1Model.geometry),
                 vao: twgl.createVAOFromBufferInfo(gl, programInfo, twgl.createBufferInfoFromArrays(gl, building1Model.geometry)),
                 materials: building1Model.materials,
@@ -600,6 +634,19 @@ async function configureBuffersAndVaos(gl) {
  * Draws the buildings in the scene.
  */
 function drawBuildings(gl, viewProjectionMatrix, buildingModels) {
+    // Posición de la cámara y de la luz en espacio de mundo
+    const camPos = twgl.v3.create(
+        settings.cameraPosition.x + data.width / 2,
+        settings.cameraPosition.y,
+        settings.cameraPosition.z + data.height / 2
+    );
+
+    const lightPos = [
+        settings.lightPosition.x,
+        settings.lightPosition.y,
+        settings.lightPosition.z,
+    ];
+
     Object.keys(buildingModels).forEach((key) => {
         const model = buildingModels[key];
         if (!model.vao || !model.bufferInfo) {
@@ -614,49 +661,47 @@ function drawBuildings(gl, viewProjectionMatrix, buildingModels) {
                 const buildingTrans = twgl.v3.create(...building.position);
                 const buildingScale = twgl.v3.create(...building.scale);
 
-                building.matrix = twgl.m4.translate(viewProjectionMatrix, buildingTrans);
-                building.matrix = twgl.m4.rotateX(building.matrix, building.rotation[0]);
-                building.matrix = twgl.m4.rotateY(building.matrix, building.rotation[1]);
-                building.matrix = twgl.m4.rotateZ(building.matrix, building.rotation[2]);
-                building.matrix = twgl.m4.scale(building.matrix, buildingScale);
+                // Matriz de modelo
+                let modelMatrix = twgl.m4.identity();
+                modelMatrix = twgl.m4.translate(modelMatrix, buildingTrans);
+                modelMatrix = twgl.m4.rotateX(modelMatrix, building.rotation[0]);
+                modelMatrix = twgl.m4.rotateY(modelMatrix, building.rotation[1]);
+                modelMatrix = twgl.m4.rotateZ(modelMatrix, building.rotation[2]);
+                modelMatrix = twgl.m4.scale(modelMatrix, buildingScale);
+
+                // Matriz MVP
+                const mvpMatrix = twgl.m4.multiply(viewProjectionMatrix, modelMatrix);
+
+                // Matriz normal
+                const normalMatrix = twgl.m4.transpose(twgl.m4.inverse(modelMatrix));
 
                 // Obtener el material correspondiente
-                const material = model.materials[building.material] || {
+                const materialName = building.material;
+                const material = model.materials[materialName] || {
                     ambient: [1.0, 1.0, 1.0, 1.0],
                     diffuse: [0.8, 0.8, 0.8, 1.0],
                     specular: [1.0, 1.0, 1.0, 1.0],
                     shininess: 50.0,
                 };
 
-                //console.log(`Material para el edificio ${building.id}:`, material);
-
-                // Verificar que las propiedades del material tengan 4 componentes
-                const ambient = material.ambient.length === 4 ? material.ambient : [1.0, 1.0, 1.0, 1.0];
-                const diffuse = material.diffuse.length === 4 ? material.diffuse : [0.8, 0.8, 0.8, 1.0];
-                const specular = material.specular.length === 4 ? material.specular : [1.0, 1.0, 1.0, 1.0];
-
-                // Revisa que las propiedades de los materiales sean válidas
+                // Verificar que las propiedades del material estén completas
                 if (!material.ambient || !material.diffuse || !material.specular) {
                     console.error(`Material incompleto para el edificio ${building.id}:`, material);
                 }
 
-                const normalMatrix = twgl.m4.transpose(twgl.m4.inverse(building.matrix));
-
+                // Uniformes a pasar
                 const uniforms = {
-                    u_matrix: building.matrix,
+                    u_matrix: mvpMatrix,
+                    u_modelMatrix: modelMatrix,
                     u_normalMatrix: normalMatrix,
-                    u_lightDirection: twgl.v3.normalize([
-                        settings.lightPosition.x,
-                        settings.lightPosition.y,
-                        settings.lightPosition.z,
-                    ]),
-                    u_ambientColor: ambient,
-                    u_diffuseColor: diffuse,
-                    u_specularColor: specular,
+                    u_lightPosition: lightPos,
+                    u_viewPosition: camPos,
+                    u_ambientColor: material.ambient,
+                    u_diffuseColor: material.diffuse,
+                    u_specularColor: material.specular,
                     u_shininess: material.shininess,
-                    a_color: material.diffuseColor
+                    u_lightIntensity: settings.lightIntensity,
                 };
-            
 
                 twgl.setUniforms(programInfo, uniforms);
                 twgl.drawBufferInfo(gl, model.bufferInfo);
@@ -664,6 +709,7 @@ function drawBuildings(gl, viewProjectionMatrix, buildingModels) {
         });
     });
 }
+
 
 
 
@@ -867,6 +913,7 @@ function parseOBJ(objText) {
                 }
                 break;
         }
+        
        
     });
 
@@ -875,17 +922,6 @@ function parseOBJ(objText) {
     if (positions.length === 0 || indices.length === 0) {
         throw new Error("El archivo OBJ no contiene datos válidos de vértices o índices.");
     }
-
-    const alignedTexcoords = [];
-    indices.forEach((index, i) => {
-        if (texcoordIndices.length > 0) {
-            alignedTexcoords.push(texcoords[texcoordIndices[i] * 2] || 0);
-            alignedTexcoords.push(texcoords[texcoordIndices[i] * 2 + 1] || 0);
-        } else {
-            alignedTexcoords.push(0); // Coordenada de textura predeterminada
-            alignedTexcoords.push(0);
-        }
-    });
 
     // Centrar el modelo al origen
     const vertexCount = positions.length / 3;
@@ -908,7 +944,6 @@ function parseOBJ(objText) {
     return {
         a_position: { numComponents: 3, data: positions },
         a_normal: { numComponents: 3, data: normals.length > 0 ? normals : [] },
-        a_texcoord: { numComponents: 2, data: alignedTexcoords },
         indices: { data: indices },
         
     };
