@@ -67,7 +67,8 @@ def getCars():
                     carPositions.append({
                         "id": str(agent.unique_id), 
                         "x": agent.pos[0],
-                        "y": 2,
+                        "y": 0,
+                        "dir": agent.direction,
                         "z": agent.pos[1]
                     })
                     

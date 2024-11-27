@@ -10,7 +10,7 @@ class Object3D {
         id,
         position = [0, 0, 0],
         rotation = [0, 0, 0],
-        scale = [1, 1, 1]
+        scale = [0.5, 0.5, 0.5]
     ) {
         this.id = id;
         this.position = position;
@@ -145,9 +145,9 @@ async function drawScene(gl) {
 
     // Draw all objects in the scene
     drawBuildings(gl, viewProjectionMatrix);
-    drawRoads(gl, viewProjectionMatrix);
-    drawTrafficLights(gl, viewProjectionMatrix);
-    drawDestinations(gl, viewProjectionMatrix);
+    // drawRoads(gl, viewProjectionMatrix);
+    // drawTrafficLights(gl, viewProjectionMatrix);
+    // drawDestinations(gl, viewProjectionMatrix);
     drawCars(gl, viewProjectionMatrix);
 
     // Increment the frame count
@@ -301,12 +301,23 @@ async function getCars() {
         if (response.ok) {
             // Parse the response as JSON
             let result = await response.json();
+            // console.log(result.cars);
+
+            const car_rot = {
+                "Up": 180,
+                "Down": 0,
+                "Left": 90,
+                "Right": 270,
+            }
 
             // Check if the cars array is empty
             if(cars.length == 0){
                 // Create new objects and add them to the object arrays
                 result.cars.forEach((car) => {
-                    const newCar = new Object3D(car.id, [car.x, car.y, car.z]);
+                    const angleInRadians = Math.PI * car_rot[car.dir] / 180;
+                    const newCar = new Object3D(car.id, [car.x, car.y, car.z], [0, angleInRadians, 0], [0.8, 0.8, 0.8]);
+                    newCar["dir"] = car.dir
+                    // const newCar = new Object3D(car.id, [car.x, car.y, car.z], [1, 1, 1], [0.01, 0.01, 0.01]);
                     cars.push(newCar);
                 });
                 // Log the cars array
@@ -314,11 +325,13 @@ async function getCars() {
             } else {
                 // Update the positions of existing cars
                 result.cars.forEach((car) => {
+                    const angleInRadians = Math.PI * car_rot[car.dir] / 180;
                     const current_car = cars.find((object3d) => object3d.id == car.id);
                     // Check if the car exists in the cars array
                     if(current_car != undefined){
                         // Update the agent's position
                         current_car.position = [car.x, car.y, car.z];
+                        current_car.rotation = [0, angleInRadians, 0]
                     }
                 });
             }
@@ -332,33 +345,63 @@ async function getCars() {
 /*
  * Configures the buffers and vertex array objects (VAOs) for the scene.
  */
-async function configureBuffersAndVaos(gl) {
-
-    // NOTA: Aquí es donde debes mandar a llamar esa función (loadObj) que te regresa los datos del archivo OBJ
-    // Vas a mandar a llamar esa función para cada uno de los archivos OBJ que necesitas cargar (o sea vas a reemplazar la de generateData)
-    // de la línea 341, 342, 343, 344 y 345
-    await loadObj("./Edificio2.obj") // Este es solo un ejemplo de como se llama a la función
-
+async function configureBuffersAndVaosForCars(gl) {
     // Generate the agent and obstacle data
-    carsArrays = generateData(1, 'cars');
-    buildingsArrays = generateData(1, 'buildings');
-    roadsArrays = generateData(1, 'roads');
-    trafficLightsArrays = generateData(1, 'trafficLights');
-    destinationsArrays = generateData(1, 'destinations');
+    carsArrays = await loadObj("./coche.obj");
 
     // Create buffer information from the agent and obstacle data
     carsBufferInfo = twgl.createBufferInfoFromArrays(gl, carsArrays);
-    buildingsBufferInfo = twgl.createBufferInfoFromArrays(gl, buildingsArrays);
-    roadsBufferInfo = twgl.createBufferInfoFromArrays(gl, roadsArrays);
-    trafficLightsBufferInfo = twgl.createBufferInfoFromArrays(gl, trafficLightsArrays);
-    destinationsBufferInfo = twgl.createBufferInfoFromArrays(gl, destinationsArrays);
 
     // Create vertex array objects (VAOs) from the buffer information
     carsVao = twgl.createVAOFromBufferInfo(gl, programInfo, carsBufferInfo);
+}
+
+
+async function configureBuffersAndVaosForBuildings(gl) {
+    // Generate the agent and obstacle data
+    buildingsArrays = await loadObj("./Edificio1.obj");
+
+    // Create buffer information from the agent and obstacle data
+    buildingsBufferInfo = twgl.createBufferInfoFromArrays(gl, buildingsArrays);
+
+    // Create vertex array objects (VAOs) from the buffer information
     buildingsVao = twgl.createVAOFromBufferInfo(gl, programInfo, buildingsBufferInfo);
-    console.assert(buildingsVao, "buildingsVao is not initialized");
+}
+
+async function configureBuffersAndVaosForRoads(gl) {
+    await loadObj("./Edificio2.obj") // Este es solo un ejemplo de como se llama a la función
+
+    // Generate the agent and obstacle data
+    roadsArrays = generateData(1, 'roads');
+
+    // Create buffer information from the agent and obstacle data
+    roadsBufferInfo = twgl.createBufferInfoFromArrays(gl, roadsArrays);
+
+    // Create vertex array objects (VAOs) from the buffer information
     roadsVao = twgl.createVAOFromBufferInfo(gl, programInfo, roadsBufferInfo);
+}
+async function configureBuffersAndVaosForTrafficLights(gl) {
+    await loadObj("./Edificio2.obj") // Este es solo un ejemplo de como se llama a la función
+
+    // Generate the agent and obstacle data
+    trafficLightsArrays = generateData(1, 'trafficLights');
+
+    // Create buffer information from the agent and obstacle data
+    trafficLightsBufferInfo = twgl.createBufferInfoFromArrays(gl, trafficLightsArrays);
+
+    // Create vertex array objects (VAOs) from the buffer information
     trafficLightsVao = twgl.createVAOFromBufferInfo(gl, programInfo, trafficLightsBufferInfo);
+}
+async function configureBuffersAndVaosForDestinations(gl) {
+    await loadObj("./Edificio2.obj") // Este es solo un ejemplo de como se llama a la función
+
+    // Generate the agent and obstacle data
+    destinationsArrays = generateData(1, 'destinations');
+
+    // Create buffer information from the agent and obstacle data
+    destinationsBufferInfo = twgl.createBufferInfoFromArrays(gl, destinationsArrays);
+
+    // Create vertex array objects (VAOs) from the buffer information
     destinationsVao = twgl.createVAOFromBufferInfo(gl, programInfo, destinationsBufferInfo);
 }
 
@@ -381,7 +424,11 @@ async function configureBuffersAndVaos(gl) {
     }
 
     // Configure the buffers and vertex array objects (VAOs)
-    await configureBuffersAndVaos(gl);
+    await configureBuffersAndVaosForBuildings(gl);
+    // await configureBuffersAndVaosForRoads(gl);
+    // await configureBuffersAndVaosForTrafficLights(gl);
+    // await configureBuffersAndVaosForDestinations(gl);
+    await configureBuffersAndVaosForCars(gl);
 
     // Set controllers for the camera and the scene
     setupUI(gl);
@@ -577,11 +624,9 @@ async function loadObj(input) {
 
         if (typeof input === "string" && input.trim().startsWith("v ")) {
             // Si el input es un contenido OBJ directamente
-            console.log("Contenido OBJ recibido directamente.");
             objText = input;
         } else if (typeof input === "string") {
             // Si el input es un URL, intenta cargarlo
-            console.log(`Intentando cargar desde URL: ${input}`);
             const response = await fetch(input);
 
             if (!response.ok) {
@@ -589,7 +634,6 @@ async function loadObj(input) {
             }
 
             objText = await response.text();
-            console.log("Contenido del archivo OBJ cargado:", objText);
         } else {
             throw new Error("El input proporcionado no es válido.");
         }
@@ -598,10 +642,7 @@ async function loadObj(input) {
         if (objText.trim().startsWith("<")) {
             throw new Error("El archivo cargado parece ser HTML en lugar de un archivo OBJ válido.");
         }
-
-        console.log("Contenido del archivo OBJ cargado:", objText);
         const parsedData = parseOBJ(objText);
-        console.log("Datos parseados del OBJ:", parsedData);
 
         return parsedData;
     } catch (err) {
@@ -617,7 +658,6 @@ function parseOBJ(objText) {
     lines.forEach((line, index) => {
         const parts = line.trim().split(/\s+/);
         if (parts.length === 0 || parts[0].startsWith("#")) {
-            console.log(`Línea ignorada en ${index + 1}: ${line}`);
             return; // Ignorar líneas vacías o comentarios
         }
 
@@ -638,19 +678,35 @@ function parseOBJ(objText) {
                 }
                 break;
             default:
-                console.log(`Línea ignorada en ${index + 1}: ${line}`);
                 break;
         }
     });
-
-    console.log("Final Positions:", positions);
-    console.log("Final Normals:", normals);
-    console.log("Final Indices:", indices);
 
     if (positions.length === 0 || indices.length === 0) {
         console.error("No se encontraron datos válidos en el archivo OBJ");
         return null;
     }
+
+     // Centrar el modelo al origen
+     const vertexCount = positions.length / 3;
+     const center = [0, 0, 0];
+     for (let i = 0; i < positions.length; i += 3) {
+         center[0] += positions[i];
+         center[1] += positions[i + 1];
+         center[2] += positions[i + 2];
+     }
+     center[0] /= vertexCount;
+     center[1] /= vertexCount;
+     center[2] /= vertexCount;
+ 
+     for (let i = 0; i < positions.length; i += 3) {
+         positions[i] -= center[0];
+         positions[i + 1] -= center[1];
+         positions[i + 2] -= center[2];
+     }
+ 
+ 
+ 
 
     return {
         a_position: { numComponents: 3, data: positions },

@@ -21,6 +21,9 @@ class Car(Agent):
         self.destination = destination
         self.last_known_direction = [agent for agent in self.model.grid[pos] if isinstance(agent, Road)][0]
         self.path = self.a_star_search(pos, self.destination.pos)
+        for agent in self.model.grid[pos]:
+            if isinstance(agent, Road) or isinstance(agent, TrafficLight):
+                self.direction = agent.direction
         # if pos in self.model.all_paths:
         #     if destination.pos in self.model.all_paths[pos]:
         #         self.path = self.model.all_paths[pos][destination.pos]
@@ -194,6 +197,9 @@ class Car(Agent):
         """
         if self.path:
             next_move = self.path[0]
+            for agent in self.model.grid[next_move]:
+                if isinstance(agent, Road) or isinstance(agent, TrafficLight):
+                    self.direction = agent.direction
             for agent in self.model.grid.get_cell_list_contents(next_move):
                 if isinstance(agent, TrafficLight):
                     # print(f"Traffic Light {agent.unique_id} is {agent.state}")
