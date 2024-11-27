@@ -15,26 +15,26 @@ cityModel = None
 def initModel():
     global cityModel
     if request.method == 'POST':
-        try:
-            # Create the model using the parameters sent by the application
-            if cityModel is None:
-                cityModel = CityModel()
-                # Return a message to saying that the model was created successfully
-                return jsonify({
-                    "message":"Parameters recieved, model initiated.",
-                    "width": cityModel.width,
-                    "height": cityModel.height
-                })
-            else:
-                return jsonify({
-                    "message":"Model already initiated",
-                    "width": cityModel.width,
-                    "height": cityModel.height
-                })
+        # try:
+        # Create the model using the parameters sent by the application
+        if cityModel is None:
+            cityModel = CityModel()
+            # Return a message to saying that the model was created successfully
+            return jsonify({
+                "message":"Parameters recieved, model initiated.",
+                "width": cityModel.width,
+                "height": cityModel.height
+            })
+        else:
+            return jsonify({
+                "message":"Model already initiated",
+                "width": cityModel.width,
+                "height": cityModel.height
+            })
 
-        except Exception as e:
-            print(e)
-            return jsonify({"message":"Erorr initializing the model"}), 500
+        # except Exception as e:
+        #     print(e)
+        #     return jsonify({"message":"Erorr initializing the model"}), 500
 
 # This route will be used to update the model
 @app.route('/update', methods=['GET'])
