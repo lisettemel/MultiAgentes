@@ -1,31 +1,29 @@
 #version 300 es
 
-precision mediump float;
+// Atributos de entrada
+in vec4 a_position; // Posición del vértice
+in vec3 a_normal;   // Normal del vértice
+in vec4 a_color;    // Color del vértice
 
-// Atributos
-in vec4 a_position;
-in vec3 a_normal;
-in vec2 a_texcoord;
+// Uniforms
+uniform mat4 u_matrix;       // Matriz de transformación completa (MVP)
+uniform mat4 u_normalMatrix; // Matriz para transformar las normales
 
-// Uniformes
-uniform mat4 u_matrix;
-uniform mat4 u_normalMatrix;
-
-// Varyings (para pasar al fragment shader)
-out vec3 v_normal;
-out vec3 v_position;
-out vec2 v_texcoord;
+// Salidas para el Fragment Shader
+out vec3 v_normal;    // Normal transformada
+out vec3 v_position;  // Posición transformada
+out vec4 v_color;     // Color del vértice
 
 void main() {
-    // Calcula la posición del vértice en el espacio del mundo
+    // Transformar la posición del vértice
     gl_Position = u_matrix * a_position;
 
-    // Calcula la normal transformada al espacio del mundo
-    v_normal = mat3(u_normalMatrix) * a_normal;
-
-    // Posición en el espacio del mundo (sin perspectiva)
+    // Calcular la posición en espacio de mundo
     v_position = (u_matrix * a_position).xyz;
 
-    // Pasar las coordenadas de textura
-    v_texcoord = a_texcoord;
+    // Transformar la normal al espacio de mundo
+    v_normal = mat3(u_normalMatrix) * a_normal;
+
+    // Pasar el color al Fragment Shader
+    v_color = a_color;
 }

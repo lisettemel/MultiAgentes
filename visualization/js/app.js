@@ -68,13 +68,14 @@ const settings = {
         z: 20,
     },
     lightPosition: {
-        x: 10,
-        y: 10,
-        z: 10,
+        x: 0,
+        y: 100,
+        z: 0,
     },
-    ambientColor: [0.5, 0.5, 0.5, 1.0],
-    diffuseColor: [0.5, 0.5, 0.5, 1.0],
-    specularColor: [0.5, 0.5, 0.5, 1.0],
+    ambientColor: [1.0, 1.0, 1.0, 1.0], 
+    diffuseColor: [0.5, 0.5, 0.5, 1.0], 
+    specularColor: [1.0, 1.0, 1.0, 1.0],
+    lightIntensity: 1.0,
 };
 
 /*
@@ -155,6 +156,9 @@ async function drawScene(gl, buildingModels) {
 
     gl.uniform1i(gl.getUniformLocation(programInfo.program, "u_hasTexture"), hasTexture ? 1 : 0);
     gl.uniform4fv(gl.getUniformLocation(programInfo.program, "u_color"), [1.0, 1.0, 1.0, 1.0]); // Blanco
+    gl.uniform1f(gl.getUniformLocation(programInfo.program, "u_lightIntensity"), settings.lightIntensity);
+
+    
 
     // Set up the view-projection matrix
     const viewProjectionMatrix = setupWorldView(gl);
@@ -174,7 +178,9 @@ async function drawScene(gl, buildingModels) {
         frameCount = 0
         await updateScene();
     } 
+    
 
+    
     // Request the next frame
     requestAnimationFrame(() => drawScene(gl, buildingModels));
 }
@@ -240,6 +246,15 @@ function setupUI(gl) {
         // Redraw the scene
         drawScene(gl, buildingModels);
     });
+    // Añade el control de intensidad de luz
+    const gui = new GUI();
+    gui.addColor(settings, 'ambientColor').onChange(() => {
+        drawScene(gl, buildingModels); // Redibuja con los nuevos valores
+    });
+    gui.add(settings, 'lightIntensity', 0.0, 50.0).onChange(() => {
+        drawScene(gl, buildingModels); // Redibuja con la nueva intensidad
+    });
+
 }
 
 /*
@@ -281,27 +296,36 @@ async function getCity() {
             // Parse the response as JSON
             let result = await response.json();
 
-            // Create new objects and add them to the object arrays
-            result.buildings.forEach((building) => {
-                const types = ['building1', 'building2', 'building3'];
-                const randomIndex = Math.floor(Math.random() * types.length);
-                const newBuilding = new Object3D(building.id, [building.x, building.y + 3.5, building.z]);
-                // Asegura que el tipo de edificio se asigna correctamente
-                newBuilding.type = types[randomIndex];
-                newBuilding.material = building.material || "Material.001"; // Asignar el material por defecto si no se define
-                buildings.push(newBuilding)
+            // Definir los tres tipos de edificios y sus IDs fijos
+            const types = ['building1', 'building2', 'building3'];
+            const ids = [1, 2, 3]; // IDs únicos para los tres tipos de edificios
+
+            // Crear los edificios reutilizando los IDs y asignándoles un tipo
+            result.buildings.forEach((building, index) => {
+                // Seleccionar un tipo de edificio basado en el índice
+                const typeIndex = index % types.length; // Ciclar entre 0, 1, 2
+                const newBuilding = new Object3D(
+                    ids[typeIndex], // Asignar el ID correspondiente al tipo
+                    [building.x, building.y + 2.5, building.z] // Posición
+                );
+                newBuilding.type = types[typeIndex]; // Asignar el tipo correspondiente
+                newBuilding.material = building.material; // Asignar el material si aplica
+
+                // Agregar el edificio a la lista de edificios
+                buildings.push(newBuilding);
             });
+            
             result.roads.forEach((road) => {
-                const newRoad = new Object3D(road.id, [road.x, road.y, road.z])
-                roads.push(newRoad)
+                const newRoad = new Object3D(road.id, [road.x, road.y, road.z]);
+                roads.push(newRoad);
             });
             result.trafficLights.forEach((trafficLight) => {
-                const newTrafficLight = new Object3D(trafficLight.id, [trafficLight.x, trafficLight.y, trafficLight.z])
-                trafficLights.push(newTrafficLight)
+                const newTrafficLight = new Object3D(trafficLight.id, [trafficLight.x, trafficLight.y, trafficLight.z]);
+                trafficLights.push(newTrafficLight);
             });
             result.destinations.forEach((destination) => {
-                const newDestination = new Object3D(destination.id, [destination.x, destination.y, destination.z])
-                destinations.push(newDestination)
+                const newDestination = new Object3D(destination.id, [destination.x, destination.y, destination.z]);
+                destinations.push(newDestination);
             });
         }
     } catch (error) {
@@ -309,6 +333,7 @@ async function getCity() {
         console.log(error);
     }
 }
+
 
 /*
  * Retrieves the current positions of all cars from the server.
@@ -383,30 +408,65 @@ function parseMTL(mtlText) {
         switch (keyword) {
             case "newmtl":
                 currentMaterial = parts[1];
-                materials[currentMaterial] = {
-                    ambient: [0.2, 0.2, 0.2],
-                    diffuse: [0.8, 0.8, 0.8],
-                    specular: [1.0, 1.0, 1.0],
-                    shininess: 35.0,
-                };
+                materials[currentMaterial] = {};
                 break;
-            case "ka":
-                if (currentMaterial) materials[currentMaterial].ambient = parts.slice(1).map(Number);
+            case "ka": // Ambient component
+                if (currentMaterial) {
+                    materials[currentMaterial].ambient = parts.slice(1).map(Number);
+                }
                 break;
-            case "kd":
-                if (currentMaterial) materials[currentMaterial].diffuse = parts.slice(1).map(Number);
+            case "kd": // Diffuse component
+                if (currentMaterial) {
+                    materials[currentMaterial].diffuse = parts.slice(1).map(Number);
+                }
                 break;
-            case "ks":
-                if (currentMaterial) materials[currentMaterial].specular = parts.slice(1).map(Number);
+            case "ks": // Specular component
+                if (currentMaterial) {
+                    materials[currentMaterial].specular = parts.slice(1).map(Number);
+                }
                 break;
-            case "ns":
-                if (currentMaterial) materials[currentMaterial].shininess = parseFloat(parts[1]);
+            case "ns": // Shininess
+                if (currentMaterial) {
+                    materials[currentMaterial].shininess = parseFloat(parts[1]);
+                }
                 break;
         }
     });
 
     return materials;
 }
+
+async function combineObjWithMtl(objPath, mtlPath) {
+    try {
+        // Cargar los datos del archivo OBJ
+        const objData = await loadObj(objPath);
+
+        if (!objData) {
+            throw new Error(`No se pudo cargar el archivo OBJ en la ruta: ${objPath}`);
+        }
+
+        // Cargar los datos del archivo MTL
+        const mtlData = await loadMTL(mtlPath);
+
+        if (!mtlData) {
+            throw new Error(`No se pudo cargar el archivo MTL en la ruta: ${mtlPath}`);
+        }
+
+        // Combinar geometría y materiales en un modelo
+        const model = {
+            geometry: objData,
+            materials: mtlData,
+        };
+
+        console.log(`Modelo combinado cargado de: OBJ (${objPath}) y MTL (${mtlPath})`);
+        return model;
+    } catch (error) {
+        console.error(`Error al combinar OBJ y MTL: ${error}`);
+        throw error;
+    }
+}
+
+
 
 
 // ******************************** drawings ********************************
@@ -420,25 +480,14 @@ async function configureBuffersAndVaos(gl) {
     try {
         // Cargar los modelos OBJ
         console.log("Cargando modelos...");
-        const building1 = await loadObj("./Edificio1.obj");
-        const building2 = await loadObj("./Edificio2.obj");
-        const building3 = await loadObj("./Edificio3.obj");
+        const building1Model = await combineObjWithMtl("./Edificio1.obj", "./Edificio1.mtl");
+        const building2Model = await combineObjWithMtl("./Edificio2.obj", "./Edificio2.mtl");
+        const building3Model = await combineObjWithMtl("./Edificio3.obj", "./Edificio3.mtl");
 
-        // Verificar que los modelos tengan datos esenciales
-        if (!building1 || !building1.a_position || !building2 || !building2.a_position) {
-            throw new Error("Los modelos de edificios no tienen los datos requeridos (a_position).");
-        }
+    
 
-        console.log("Modelos cargados correctamente:", { building1, building2, building3 });
+        console.log("Modelos cargados correctamente:", { building1Model, building2Model, building3Model});
 
-        // Cargar los materiales
-        const materials1 = await loadMTL("./Edificio1.mtl");
-        const materials2 = await loadMTL("./Edificio2.mtl");
-        const materials3 = await loadMTL("./Edificio3.mtl");
-
-        console.log("Materiales cargados para Building1:", materials1);
-        console.log("Materiales cargados para Building2:", materials2);
-        console.log("Materiales cargados para Building3:", materials3);
     
 
         // Crear buffers para las carreteras
@@ -463,20 +512,20 @@ async function configureBuffersAndVaos(gl) {
 
         // Crear buffers y VAOs para los modelos
         const buildingModels = {
-            building1: {
-                bufferInfo: twgl.createBufferInfoFromArrays(gl, building1),
-                vao: twgl.createVAOFromBufferInfo(gl, programInfo, twgl.createBufferInfoFromArrays(gl, building1)),
-                materials: materials1,
+            bbuilding1: {
+                bufferInfo: twgl.createBufferInfoFromArrays(gl, building1Model.geometry),
+                vao: twgl.createVAOFromBufferInfo(gl, programInfo, twgl.createBufferInfoFromArrays(gl, building1Model.geometry)),
+                materials: building1Model.materials,
             },
             building2: {
-                bufferInfo: twgl.createBufferInfoFromArrays(gl, building2),
-                vao: twgl.createVAOFromBufferInfo(gl, programInfo, twgl.createBufferInfoFromArrays(gl, building2)),
-                materials: materials2,
+                bufferInfo: twgl.createBufferInfoFromArrays(gl, building2Model.geometry),
+                vao: twgl.createVAOFromBufferInfo(gl, programInfo, twgl.createBufferInfoFromArrays(gl, building2Model.geometry)),
+                materials: building2Model.materials,
             },
             building3: {
-                bufferInfo: twgl.createBufferInfoFromArrays(gl, building3),
-                vao: twgl.createVAOFromBufferInfo(gl, programInfo, twgl.createBufferInfoFromArrays(gl, building3)),
-                materials: materials3,
+                bufferInfo: twgl.createBufferInfoFromArrays(gl, building3Model.geometry),
+                vao: twgl.createVAOFromBufferInfo(gl, programInfo, twgl.createBufferInfoFromArrays(gl, building3Model.geometry)),
+                materials: building3Model.materials,
             },
         };
 
@@ -573,16 +622,23 @@ function drawBuildings(gl, viewProjectionMatrix, buildingModels) {
 
                 // Obtener el material correspondiente
                 const material = model.materials[building.material] || {
-                    ambient: [0.2, 0.2, 0.2, 1.0],
+                    ambient: [1.0, 1.0, 1.0, 1.0],
                     diffuse: [0.8, 0.8, 0.8, 1.0],
                     specular: [1.0, 1.0, 1.0, 1.0],
-                    shininess: 32.0,
+                    shininess: 50.0,
                 };
 
+                //console.log(`Material para el edificio ${building.id}:`, material);
+
                 // Verificar que las propiedades del material tengan 4 componentes
-                const ambient = material.ambient.length === 4 ? material.ambient : [0.2, 0.2, 0.2, 1.0];
+                const ambient = material.ambient.length === 4 ? material.ambient : [1.0, 1.0, 1.0, 1.0];
                 const diffuse = material.diffuse.length === 4 ? material.diffuse : [0.8, 0.8, 0.8, 1.0];
                 const specular = material.specular.length === 4 ? material.specular : [1.0, 1.0, 1.0, 1.0];
+
+                // Revisa que las propiedades de los materiales sean válidas
+                if (!material.ambient || !material.diffuse || !material.specular) {
+                    console.error(`Material incompleto para el edificio ${building.id}:`, material);
+                }
 
                 const normalMatrix = twgl.m4.transpose(twgl.m4.inverse(building.matrix));
 
@@ -598,7 +654,7 @@ function drawBuildings(gl, viewProjectionMatrix, buildingModels) {
                     u_diffuseColor: diffuse,
                     u_specularColor: specular,
                     u_shininess: material.shininess,
-                    u_hasTexture: 0, // No se están usando texturas
+                    a_color: material.diffuseColor
                 };
             
 
@@ -814,6 +870,8 @@ function parseOBJ(objText) {
        
     });
 
+    
+
     if (positions.length === 0 || indices.length === 0) {
         throw new Error("El archivo OBJ no contiene datos válidos de vértices o índices.");
     }
@@ -858,6 +916,8 @@ function parseOBJ(objText) {
 
 
 }
+
+
 
 function generateData(size, type) {
     let arrays =
@@ -925,10 +985,9 @@ function generateData(size, type) {
                     0.666, 0.666, 0.666, 1, // v_4
                     0.666, 0.666, 0.666, 1, // v_4
                     0.666, 0.666, 0.666, 1, // v_4
-                  // Right Face
-                    0.833, 0.833, 0.833, 1, // v_5
-                    0.833, 0.833, 0.833, 1, // v_5
-                    0.833, 0.833, 0.833, 1, // v_5
+                  //1.0ght 1.0                  1.033, 1.033, 1.033, 1, // v_5
+                    1.033, 1.033, 1.033, 1, // v_5
+                    1.033, 1.033, 1.033, 1, // v_5
                     0.833, 0.833, 0.833, 1, // v_5
                   // Left Face
                     1, 1, 1, 1, // v_6
