@@ -15,7 +15,10 @@
 <body>
   <header class="header">
     <div class="logo">
-      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e8eaed"><path d="m600-120-240-84-186 72q-20 8-37-4.5T120-170v-560q0-13 7.5-23t20.5-15l212-72 240 84 186-72q20-8 37 4.5t17 33.5v560q0 13-7.5 23T812-192l-212 72Zm-40-98v-468l-160-56v468l160 56Zm80 0 120-40v-474l-120 46v468Zm-440-10 120-46v-468l-120 40v474Zm440-458v468-468Zm-320-56v468-468Z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e8eaed">
+        <path
+          d="m600-120-240-84-186 72q-20 8-37-4.5T120-170v-560q0-13 7.5-23t20.5-15l212-72 240 84 186-72q20-8 37 4.5t17 33.5v560q0 13-7.5 23T812-192l-212 72Zm-40-98v-468l-160-56v468l160 56Zm80 0 120-40v-474l-120 46v468Zm-440-10 120-46v-468l-120 40v474Zm440-458v468-468Zm-320-56v468-468Z" />
+      </svg>
       <!-- <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e8eaed"><path d="M120-120v-560h240v-80l120-120 120 120v240h240v400H120Zm80-80h80v-80h-80v80Zm0-160h80v-80h-80v80Zm0-160h80v-80h-80v80Zm240 320h80v-80h-80v80Zm0-160h80v-80h-80v80Zm0-160h80v-80h-80v80Zm0-160h80v-80h-80v80Zm240 480h80v-80h-80v80Zm0-160h80v-80h-80v80Z"/></svg> -->
       <h1>CitySimulation</h1>
     </div>
@@ -27,39 +30,52 @@
       <canvas id="city-canvas"></canvas>
     </main>
     <aside class="sidebar">
-      <h3>Controls</h3>
-      <div class="controls">
-        <h4>Camera</h4>
-        <div class="field">
-          <label for="cameraX">Camera X: <span id="cameraXValue"></span></label>
-          <div class="input">
-            <p>-50</p>
-            <input type="range" id="cameraX" min="-50" max="50" step="1">
-            <p>50</p>
+      <div class="sidebar-controls">
+        <h3>Controls</h3>
+        <div class="controls">
+          <h4>Camera</h4>
+          <button class="reset" id="resetCamera" type="button">Reset Camera</button>
+          <div class="field">
+            <label for="cameraX">Camera X: <span id="cameraXValue"></span></label>
+            <div class="input">
+              <p>-50</p>
+              <input type="range" id="cameraX" min="-50" max="50" step="1">
+              <p>50</p>
+            </div>
           </div>
-        </div>
-        <div class="field">
-          <label for="cameraY">Camera Y: <span id="cameraYValue"></span></label>
-          <div class="input">
-            <p>-50</p>
-            <input type="range" id="cameraY" min="-50" max="50" step="1">
-            <p>50</p>
+          <div class="field">
+            <label for="cameraY">Camera Y: <span id="cameraYValue"></span></label>
+            <div class="input">
+              <p>-50</p>
+              <input type="range" id="cameraY" min="-50" max="50" step="1">
+              <p>50</p>
+            </div>
           </div>
-        </div>
-        <div class="field">
-          <label for="cameraY">Camera Z: <span id="cameraZValue"></span></label>
-          <div class="input">
-            <p>-50</p>
-            <input type="range" id="cameraZ" min="-50" max="50" step="1">
-            <p>50</p>
+          <div class="field">
+            <label for="cameraY">Camera Z: <span id="cameraZValue"></span></label>
+            <div class="input">
+              <p>-50</p>
+              <input type="range" id="cameraZ" min="-50" max="50" step="1">
+              <p>50</p>
+            </div>
           </div>
+          <h4>Server</h4>
+          <button class="reset" id="resetCamera" type="button">Reset Server</button>
+          <button class="pause" id="resetCamera" type="button">Pause</button>
         </div>
-        <button class="reset" id="resetCamera" type="button">Reset Camera</button>
-        <!-- <h4>Other Set of Controlls</h4> -->
+      </div>
+      <div class="stats">
+        <h3>Stats</h3>
+        <p>Total Cars: </p>
+        <p>Current Cars: </p>
+        <p>Current Cars: </p>
+        <p>Current Cars: </p>
+        <p>Current Cars: </p>
       </div>
     </aside>
   </div>
   <script defer type="module" src="js/app.js"></script>
   <!-- <script defer type="module" src="js/prueba.js"></script> -->
 </body>
+
 </html>

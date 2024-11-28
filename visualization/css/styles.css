@@ -74,7 +74,12 @@ img {
   display: flex;
   gap: 2rem;
 }
-.main, .sidebar{
+.sidebar{
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+.main, .sidebar-controls, .stats{
   border: 1px solid var(--gray);
   border-radius: 1rem;
   padding: 2rem 3rem;
@@ -152,7 +157,7 @@ img {
   accent-color: var(--black);
   cursor: pointer;
 }
-.reset {
+.reset, .pause {
   all: unset;
   cursor: pointer;
   padding: .5rem 1rem;
@@ -164,4 +169,12 @@ img {
 }
 .reset:hover{
   background-color: var(--dark_gray);
+}
+.pause{
+  background-color: var(--white);
+  color: var(--black);
+  border: 1px solid var(--black);
+}
+.pause:hover{
+  background-color: color-mix(in srgb, var(--white) 80%, #000000);
 }

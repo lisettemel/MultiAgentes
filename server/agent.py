@@ -133,16 +133,6 @@ class Car(Agent):
                             elif agent.direction == 'Left' and agent.pos[0] <= current[0]:
                                 self.last_known_direction = 'Left'
                                 possible_moves.append(neighbor)
-                        
-                        # if current_direction == 'Up' and agent.pos[1] > current[1] and agent.pos[0] == current[0]:
-                        #     possible_moves.append(neighbor)
-                        # elif current_direction == 'Down' and agent.pos[1] < current[1] and agent.pos[0] == current[0]:
-                        #     possible_moves.append(neighbor)
-                        # elif current_direction == 'Right' and agent.pos[0] > current[0] and agent.pos[0] == current[0]:
-                        #     possible_moves.append(neighbor)
-                        # elif current_direction == 'Left' and agent.pos[0] < current[0] and agent.pos[0] == current[0]:
-                        #     possible_moves.append(neighbor)
-
         return possible_moves
 
 

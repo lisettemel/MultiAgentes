@@ -1,6 +1,7 @@
 "use strict";
 import * as twgl from 'twgl.js';
 import GUI from "lil-gui";
+import { v3, m4 } from './starter_3D_lib';
 import vsGLSL from "../assets/shaders/vs_phong.glsl?raw";
 import fsGLSL from "../assets/shaders/fs_phong.glsl?raw";
 
@@ -65,7 +66,7 @@ const settings = {
     cameraPosition: {
         x: 20,
         y: 20,
-        z: 20,
+        z: 30,
     },
     lightPosition: {
         x: 10,
@@ -140,6 +141,25 @@ async function drawScene(gl) {
 
     // Use the program
     gl.useProgram(programInfo.program);
+
+    // Variable with the position of the light
+    let v3_lightPosition = twgl.v3.create(settings.lightPosition.x,
+        settings.lightPosition.y,
+        settings.lightPosition.z);
+    let v3_cameraPosition = twgl.v3.create(settings.cameraPosition.x,
+        settings.cameraPosition.y,
+        settings.cameraPosition.z);
+
+    let globalUniforms = {
+        u_viewWorldPosition: v3_cameraPosition,
+        u_lightWorldPosition: v3_lightPosition,
+        u_ambientLight: settings.ambientColor,
+        u_diffuseLight: settings.diffuseColor,
+        u_specularLight: settings.specularColor,
+    };
+
+    twgl.setUniforms(programInfo, globalUniforms);
+
     // Set up the view-projection matrix
     const viewProjectionMatrix = setupWorldView(gl);
 
@@ -148,7 +168,7 @@ async function drawScene(gl) {
     // drawRoads(gl, viewProjectionMatrix);
     // drawTrafficLights(gl, viewProjectionMatrix);
     // drawDestinations(gl, viewProjectionMatrix);
-    drawCars(gl, viewProjectionMatrix);
+    // drawCars(gl, viewProjectionMatrix);
 
     // Increment the frame count
     frameCount++;
@@ -310,12 +330,14 @@ async function getCars() {
                 "Right": 270,
             }
 
+            cars = []
+
             // Check if the cars array is empty
             if(cars.length == 0){
                 // Create new objects and add them to the object arrays
                 result.cars.forEach((car) => {
                     const angleInRadians = Math.PI * car_rot[car.dir] / 180;
-                    const newCar = new Object3D(car.id, [car.x, car.y, car.z], [0, angleInRadians, 0], [0.8, 0.8, 0.8]);
+                    const newCar = new Object3D(car.id, [car.x, car.y, car.z], [0, angleInRadians, 0], [0.7, 0.7, 0.7]);
                     newCar["dir"] = car.dir
                     // const newCar = new Object3D(car.id, [car.x, car.y, car.z], [1, 1, 1], [0.01, 0.01, 0.01]);
                     cars.push(newCar);
@@ -332,6 +354,12 @@ async function getCars() {
                         // Update the agent's position
                         current_car.position = [car.x, car.y, car.z];
                         current_car.rotation = [0, angleInRadians, 0]
+                    } else {
+                        const angleInRadians = Math.PI * car_rot[car.dir] / 180;
+                        const newCar = new Object3D(car.id, [car.x, car.y, car.z], [0, angleInRadians, 0], [0.7, 0.7, 0.7]);
+                        newCar["dir"] = car.dir
+                        // const newCar = new Object3D(car.id, [car.x, car.y, car.z], [1, 1, 1], [0.01, 0.01, 0.01]);
+                        cars.push(newCar);
                     }
                 });
             }
@@ -360,9 +388,11 @@ async function configureBuffersAndVaosForCars(gl) {
 async function configureBuffersAndVaosForBuildings(gl) {
     // Generate the agent and obstacle data
     buildingsArrays = await loadObj("./Edificio1.obj");
+    console.log("Arrays: ", buildingsArrays);
 
     // Create buffer information from the agent and obstacle data
     buildingsBufferInfo = twgl.createBufferInfoFromArrays(gl, buildingsArrays);
+    console.log("Vao: ", buildingsBufferInfo);
 
     // Create vertex array objects (VAOs) from the buffer information
     buildingsVao = twgl.createVAOFromBufferInfo(gl, programInfo, buildingsBufferInfo);
@@ -428,7 +458,7 @@ async function configureBuffersAndVaosForDestinations(gl) {
     // await configureBuffersAndVaosForRoads(gl);
     // await configureBuffersAndVaosForTrafficLights(gl);
     // await configureBuffersAndVaosForDestinations(gl);
-    await configureBuffersAndVaosForCars(gl);
+    // await configureBuffersAndVaosForCars(gl);
 
     // Set controllers for the camera and the scene
     setupUI(gl);
@@ -477,14 +507,26 @@ function drawBuildings(gl, viewProjectionMatrix) {
         building.matrix = twgl.m4.rotateY(building.matrix, building.rotation[1]);
         building.matrix = twgl.m4.rotateZ(building.matrix, building.rotation[2]);
         building.matrix = twgl.m4.scale(building.matrix, buildingScale);
-        
+
+        let worldViewProjection = twgl.m4.multiply(viewProjectionMatrix, building.matrix);
+
+        let transformsInverseTranspose = twgl.m4.create();
+
         // Set the uniforms for the buildings
-        let uniforms = {
-            u_matrix: building.matrix,
-        };
+        let modelUniforms = {
+            u_world: building.matrix,
+            u_transforms: worldViewProjection,
+            u_worldInverseTransform: transformsInverseTranspose,
+            u_worldViewProjection: worldViewProjection,
+            u_ambientColor: [0.3, 0.6, 0.6, 1.0],
+            u_diffuseColor: [0.3, 0.6, 0.6, 1.0],
+            u_specularColor: [0.3, 0.6, 0.6, 1.0],
+            u_shininess: 60.0
+        }
+        
         
         // Set the uniforms for the buildings and draw them
-        twgl.setUniforms(programInfo, uniforms);
+        twgl.setUniforms(programInfo, modelUniforms);
         twgl.drawBufferInfo(gl, buildingsBufferInfo);
     });
 }
@@ -706,10 +748,9 @@ function parseOBJ(objText) {
      }
  
  
- 
 
     return {
-        a_position: { numComponents: 3, data: positions },
+        a_position: { numComponents: 4, data: positions.length === 3 ? positions : [...positions, 1.0] },
         a_normal: { numComponents: 3, data: normals.length > 0 ? normals : [] },
         indices: { data: indices },
     };

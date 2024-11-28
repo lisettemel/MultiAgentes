@@ -33,7 +33,7 @@ class CityModel(Model):
         self.all_paths = {}
 
         # Load the map file. The map file is a text file where each character represents an agent.
-        with open('city_files/2022_base.txt') as baseFile:
+        with open('city_files/2024_base.txt') as baseFile:
             lines = baseFile.readlines()
             self.width = len(lines[0])-1
             self.height = len(lines)
