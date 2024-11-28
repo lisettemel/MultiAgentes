@@ -287,20 +287,25 @@ async function getCity() {
                     [trafficLight.x, trafficLight.y + 1, trafficLight.z]
                 );
 
-                // Asignar dirección si está disponible
-                if (trafficLight.direction) {
-                    newTrafficLight.direction = trafficLight.direction;
+                // Asignar dirección
+                newTrafficLight.direction = trafficLight.direction; // Asegúrate de que el servidor envíe esta propiedad
+
+                // Evaluar la condición: si dos caracteres de dos celdas son iguales
+                // Aquí, asumo que tienes propiedades `cell1` y `cell2` con caracteres
+                // Ajusta esto según tu estructura de datos real
+                if (trafficLight.cell1 === trafficLight.cell2) {
+                    newTrafficLight.sameDirection = true;
                 }
+
+                // Establecer rotación basada en la dirección y la condición
+                setTrafficLightRotation(newTrafficLight);
 
                 trafficLights.push(newTrafficLight);
             });
-
-            // Cargar destinos
             result.destinations.forEach((destination) => {
-                const newDestination = new Object3D(destination.id, [destination.x, destination.y, destination.z]);
-                destinations.push(newDestination);
+                const newDestination = new Object3D(destination.id, [destination.x, destination.y, destination.z])
+                destinations.push(newDestination)
             });
-            
         }
     } catch (error) {
         // Log any errors that occur during the request
@@ -312,8 +317,31 @@ function degreesToRadians(degrees) {
     return degrees * Math.PI / 180;
 }
 
-
-
+function setTrafficLightRotation(trafficLight) {
+    if (trafficLight.sameDirection) {
+        // Rotar hacia una dirección específica cuando la condición se cumple
+        // Por ejemplo, rotar 90 grados
+        trafficLight.rotation = [0, degreesToRadians(90), 0];
+    } else {
+        // Rotar basado en la dirección de la calle
+        switch (trafficLight.direction) {
+            case 'Up':
+                trafficLight.rotation = [0, degreesToRadians(0), 0];
+                break;
+            case 'Down':
+                trafficLight.rotation = [0, degreesToRadians(180), 0];
+                break;
+            case 'Left':
+                trafficLight.rotation = [0, degreesToRadians(90), 0];
+                break;
+            case 'Right':
+                trafficLight.rotation = [0, degreesToRadians(270), 0];
+                break;
+            default:
+                trafficLight.rotation = [0, 0, 0];
+        }
+    }
+}
 
 /*
  * Retrieves the current positions of all cars from the server.
@@ -330,10 +358,10 @@ async function getCars() {
             // console.log(result.cars);
 
             const car_rot = {
-                "Up": 0,     // Opuesto a "Up" es "Down" -> 0 grados
-                "Down": 180, // Opuesto a "Down" es "Up" -> 180 grados
-                "Left": 270, // Opuesto a "Left" es "Right" -> 270 grados
-                "Right": 90  // Opuesto a "Right" es "Left" -> 90 grados
+                "Up": 180,
+                "Down": 0,
+                "Left": 90,
+                "Right": 270,
             }
 
 
