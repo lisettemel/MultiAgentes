@@ -17,6 +17,11 @@ class Object3D {
         this.rotation = rotation;
         this.scale = scale;
         this.matrix = twgl.m4.create();
+        this.previousPosition = position.slice();
+        this.targetPosition = position.slice();
+        this.previousRotation = rotation.slice();
+        this.targetRotation = rotation.slice();
+
     }
 }
 
@@ -48,6 +53,8 @@ let trafficLights = [];
 let destinations = [];
 // Initialize the frame count
 let frameCount = 0;
+let lastUpdateTime = 0;
+let updateInterval = 500;
 // Define the data object
 let data = {
     NAgents: 500,
@@ -146,7 +153,7 @@ async function drawScene(gl) {
     // Draw all objects in the scene
     drawBuildings(gl, viewProjectionMatrix);
     // drawRoads(gl, viewProjectionMatrix);
-    // drawTrafficLights(gl, viewProjectionMatrix);
+    drawTrafficLights(gl, viewProjectionMatrix);
     // drawDestinations(gl, viewProjectionMatrix);
     drawCars(gl, viewProjectionMatrix);
 
@@ -275,19 +282,38 @@ async function getCity() {
                 roads.push(newRoad)
             });
             result.trafficLights.forEach((trafficLight) => {
-                const newTrafficLight = new Object3D(trafficLight.id, [trafficLight.x, trafficLight.y, trafficLight.z])
-                trafficLights.push(newTrafficLight)
+                const newTrafficLight = new Object3D(
+                    trafficLight.id,
+                    [trafficLight.x, trafficLight.y + 1, trafficLight.z]
+                );
+
+                // Asignar dirección si está disponible
+                if (trafficLight.direction) {
+                    newTrafficLight.direction = trafficLight.direction;
+                }
+
+                trafficLights.push(newTrafficLight);
             });
+
+            // Cargar destinos
             result.destinations.forEach((destination) => {
-                const newDestination = new Object3D(destination.id, [destination.x, destination.y, destination.z])
-                destinations.push(newDestination)
+                const newDestination = new Object3D(destination.id, [destination.x, destination.y, destination.z]);
+                destinations.push(newDestination);
             });
+            
         }
     } catch (error) {
         // Log any errors that occur during the request
         console.log(error);
     }
 }
+
+function degreesToRadians(degrees) {
+    return degrees * Math.PI / 180;
+}
+
+
+
 
 /*
  * Retrieves the current positions of all cars from the server.
@@ -304,11 +330,12 @@ async function getCars() {
             // console.log(result.cars);
 
             const car_rot = {
-                "Up": 180,
-                "Down": 0,
-                "Left": 90,
-                "Right": 270,
+                "Up": 0,     // Opuesto a "Up" es "Down" -> 0 grados
+                "Down": 180, // Opuesto a "Down" es "Up" -> 180 grados
+                "Left": 270, // Opuesto a "Left" es "Right" -> 270 grados
+                "Right": 90  // Opuesto a "Right" es "Left" -> 90 grados
             }
+
 
             // Check if the cars array is empty
             if(cars.length == 0){
@@ -381,10 +408,17 @@ async function configureBuffersAndVaosForRoads(gl) {
     roadsVao = twgl.createVAOFromBufferInfo(gl, programInfo, roadsBufferInfo);
 }
 async function configureBuffersAndVaosForTrafficLights(gl) {
-    await loadObj("./Edificio2.obj") // Este es solo un ejemplo de como se llama a la función
+    trafficLightsArrays = await loadObj("./semaforo.obj") // Este es solo un ejemplo de como se llama a la función
+
+    // Verificar si los datos se cargaron correctamente
+    if (!trafficLightsArrays) {
+        console.error("Error al cargar el modelo de semáforo.");
+        return;
+    }
+
 
     // Generate the agent and obstacle data
-    trafficLightsArrays = generateData(1, 'trafficLights');
+    //trafficLightsArrays = generateData(1, 'trafficLights');
 
     // Create buffer information from the agent and obstacle data
     trafficLightsBufferInfo = twgl.createBufferInfoFromArrays(gl, trafficLightsArrays);
@@ -426,7 +460,7 @@ async function configureBuffersAndVaosForDestinations(gl) {
     // Configure the buffers and vertex array objects (VAOs)
     await configureBuffersAndVaosForBuildings(gl);
     // await configureBuffersAndVaosForRoads(gl);
-    // await configureBuffersAndVaosForTrafficLights(gl);
+    await configureBuffersAndVaosForTrafficLights(gl);
     // await configureBuffersAndVaosForDestinations(gl);
     await configureBuffersAndVaosForCars(gl);
 
@@ -538,6 +572,7 @@ function drawTrafficLights(gl, viewProjectionMatrix) {
         trafficLight.matrix = twgl.m4.rotateZ(trafficLight.matrix, trafficLight.rotation[2]);
         trafficLight.matrix = twgl.m4.scale(trafficLight.matrix, trafficLightScale);
 
+       
         // Set the uniforms for the traffic lights
         let uniforms = {
             u_matrix: trafficLight.matrix,
@@ -546,7 +581,9 @@ function drawTrafficLights(gl, viewProjectionMatrix) {
         // Set the uniforms for the traffic lights and draw them
         twgl.setUniforms(programInfo, uniforms);
         twgl.drawBufferInfo(gl, trafficLightsBufferInfo);
+        
     });
+    
 }
 /*
  * Draws the destinations in the scene.
@@ -576,7 +613,19 @@ function drawDestinations(gl, viewProjectionMatrix) {
         // Set the uniforms for the destinations and draw them
         twgl.setUniforms(programInfo, uniforms);
         twgl.drawBufferInfo(gl, destinationsBufferInfo);
+        const error = gl.getError();
+        if (error !== gl.NO_ERROR) {
+            console.error(`Error de WebGL al dibujar semáforo ID ${trafficLight.id}:`, error);
+        }
     });
+    
+}
+
+function calculateRotationY(fromPos, toPos) {
+    const dx = toPos[0] - fromPos[0];
+    const dz = toPos[2] - fromPos[2];
+    const angle = Math.atan2(dx, dz); // atan2 devuelve el ángulo entre -PI y PI
+    return angle;
 }
 /*
  * Draws the cars in the scene.
@@ -584,6 +633,8 @@ function drawDestinations(gl, viewProjectionMatrix) {
 function drawCars(gl, viewProjectionMatrix) {
     // Bind the vertex array object for the cars
     gl.bindVertexArray(carsVao);
+
+    
 
     // Set the model matrix for the cars
     cars.forEach((car) => {
