@@ -4,6 +4,55 @@ import GUI from "lil-gui";
 import vsGLSL from "../assets/shaders/vs_phong.glsl?raw";
 import fsGLSL from "../assets/shaders/fs_phong.glsl?raw";
 
+//  Definir la paleta de colores en hexadecimal
+const colorPalette = [
+    "#B2AA8E", 
+    "#0C1B33",
+    "#4B6858", 
+    "#86615C", 
+    // "#9B59B6", 
+    // "#E67E22", 
+    // "#1ABC9C", 
+    // "#2ECC71", 
+    // "#3498DB", 
+    // "#E74C3C"  
+];
+
+//  Convertir la paleta de colores a formato RGB normalizado
+const normalizedColorPalette = colorPalette.map(hex => hexToRGBA(hex));
+
+/**
+ * Convierte un color hexadecimal a un arreglo [r, g, b, a].
+ *
+ */
+function hexToRGBA(hex) {
+    // Elimina el carácter '#' si está presente
+    hex = hex.replace(/^#/, '');
+    
+    // Expande los códigos cortos (e.g., "FFF") a completos ("FFFFFF")
+    if (hex.length === 3) {
+        hex = hex.split('').map(char => char + char).join('');
+    }
+    
+    // Extrae los componentes R, G, B
+    const bigint = parseInt(hex, 16);
+    const r = ((bigint >> 16) & 255) / 255;
+    const g = ((bigint >> 8) & 255) / 255;
+    const b = (bigint & 255) / 255;
+    
+    return [r, g, b, 1.0]; // Opacidad completa
+}
+
+function getRandomColor() {
+    return [
+        Math.random(), // R (0.0 - 1.0)
+        Math.random(), // G (0.0 - 1.0)
+        Math.random(), // B (0.0 - 1.0)
+        1.0            // A (opacidad completa)
+    ];
+}
+
+
 // Define the Object3D class to represent 3D objects
 class Object3D {
     constructor(
@@ -21,6 +70,11 @@ class Object3D {
         this.targetPosition = position.slice();
         this.previousRotation = rotation.slice();
         this.targetRotation = rotation.slice();
+
+        // Asignar colores aleatorios
+        this.ambientColor = getRandomColor();
+        this.diffuseColor = getRandomColor();
+        this.specularColor = getRandomColor();
     }
 }
 
@@ -52,8 +106,6 @@ let trafficLights = [];
 let destinations = [];
 // Initialize the frame count
 let frameCount = 0;
-let lastUpdateTime = 0;
-let updateInterval = 500;
 // Define the data object
 let data = {
     NAgents: 500,
@@ -166,9 +218,9 @@ async function drawScene(gl) {
     
     // Dibuja los objetos pasando los uniformes globales y específicos
     drawBuildings(gl, viewProjectionMatrix, globalUniforms);
-    // drawRoads(gl, viewProjectionMatrix, globalUniforms);
+    drawRoads(gl, viewProjectionMatrix, globalUniforms);
     drawTrafficLights(gl, viewProjectionMatrix, globalUniforms);
-    // drawDestinations(gl, viewProjectionMatrix, globalUniforms);
+    //drawDestinations(gl, viewProjectionMatrix, globalUniforms);
     drawCars(gl, viewProjectionMatrix, globalUniforms);
     
     // Incrementa el contador de frames
@@ -312,13 +364,13 @@ async function getCity() {
                 buildings.push(newBuilding)
             });
             result.roads.forEach((road) => {
-                const newRoad = new Object3D(road.id, [road.x, road.y, road.z])
+                const newRoad = new Object3D(road.id, [road.x, road.y - 1.4, road.z])
                 roads.push(newRoad)
             });
             result.trafficLights.forEach((trafficLight) => {
                 const newTrafficLight = new Object3D(
                     trafficLight.id,
-                    [trafficLight.x, trafficLight.y + 1, trafficLight.z]
+                    [trafficLight.x, trafficLight.y, trafficLight.z]
                 );
 
                 // Asignar dirección
@@ -389,7 +441,7 @@ async function getCars() {
         if (response.ok) {
             // Parse the response as JSON
             let result = await response.json();
-            // console.log(result.cars);
+            console.log(result);
 
             const car_rot = {
                 "Up": 180,
@@ -397,6 +449,9 @@ async function getCars() {
                 "Left": 90,
                 "Right": 270,
             }
+
+            cars = [];
+            trafficLights = [];
 
             // Check if the cars array is empty
             if(cars.length === 0){
@@ -406,6 +461,11 @@ async function getCars() {
                     const newCar = new Object3D(car.id, [car.x, car.y, car.z], [0, angleInRadians, 0], [0.8, 0.8, 0.8]);
                     newCar["dir"] = car.dir
                     cars.push(newCar);
+                });
+
+                result.trafficLights.forEach((trafficLight) => {
+                    const newTrafficLight = new Object3D(trafficLight.id, [trafficLight.x, trafficLight.y, trafficLight.z])
+                    trafficLights.push(newTrafficLight)
                 });
                 // Log the cars array
                 // console.log("Cars: ", agents)
@@ -445,6 +505,8 @@ async function configureBuffersAndVaosForCars(gl) {
 
 
 async function configureBuffersAndVaosForBuildings(gl) {
+    const roadData = generateData(1.0, 'roads');
+    console.log('Datos escalados de carreteras:', roadData.a_position.data);
     // Generate the agent and obstacle data
     buildingsArrays = await loadObj("./Edificio1.obj");
 
@@ -456,7 +518,7 @@ async function configureBuffersAndVaosForBuildings(gl) {
 }
 
 async function configureBuffersAndVaosForRoads(gl) {
-    await loadObj("./Edificio2.obj") // Este es solo un ejemplo de como se llama a la función
+    await loadObj("./floor.obj") // Este es solo un ejemplo de como se llama a la función
 
     // Generate the agent and obstacle data
     roadsArrays = generateData(1, 'roads');
@@ -519,9 +581,9 @@ async function configureBuffersAndVaosForDestinations(gl) {
 
     // Configure the buffers and vertex array objects (VAOs)
     await configureBuffersAndVaosForBuildings(gl);
-    // await configureBuffersAndVaosForRoads(gl);
+    await configureBuffersAndVaosForRoads(gl);
     await configureBuffersAndVaosForTrafficLights(gl);
-    // await configureBuffersAndVaosForDestinations(gl);
+    //await configureBuffersAndVaosForDestinations(gl);
     await configureBuffersAndVaosForCars(gl);
 
     // Set controllers for the camera and the scene
@@ -549,35 +611,39 @@ async function configureBuffersAndVaosForDestinations(gl) {
  * Draws the buildings in the scene.
  */
 function drawBuildings(gl, viewProjectionMatrix, globalUniforms) {
-    // Bind the vertex array object for the buildings
+    // Vincula el VAO para los edificios
     gl.bindVertexArray(buildingsVao);
-    
-    // Set the model matrix for the buildings
+
+    // Itera sobre cada edificio
     buildings.forEach((building) => {
-        // Create the matrix transformations for the buildings
+        // Crea las transformaciones
         const buildingTrans = twgl.v3.create(...building.position);
         const buildingScale = twgl.v3.create(...building.scale);
-        
-        // Calculate the building's matrix
+
+        // Calcula la matriz de modelo
         building.matrix = twgl.m4.translate(viewProjectionMatrix, buildingTrans);
         building.matrix = twgl.m4.rotateX(building.matrix, building.rotation[0]);
         building.matrix = twgl.m4.rotateY(building.matrix, building.rotation[1]);
         building.matrix = twgl.m4.rotateZ(building.matrix, building.rotation[2]);
         building.matrix = twgl.m4.scale(building.matrix, buildingScale);
-        
+
         // Define los uniformes específicos del modelo
         let modelUniforms = {
             u_matrix: building.matrix,
+            u_ambientColor: building.ambientColor,
+            u_diffuseColor: building.diffuseColor,
+            u_specularColor: building.specularColor,
         };
-        
+
         // Combina los uniformes globales y específicos
         let allUniforms = Object.assign({}, globalUniforms, modelUniforms);
-        
+
         // Establece los uniformes y dibuja
         twgl.setUniforms(programInfo, allUniforms);
         twgl.drawBufferInfo(gl, buildingsBufferInfo);
     });
 }
+
 
 
 /*
@@ -670,28 +736,33 @@ function drawDestinations(gl, viewProjectionMatrix, globalUniforms) {
  * Draws the cars in the scene.
  */
 function drawCars(gl, viewProjectionMatrix, globalUniforms) {
+    // Vincula el VAO para los coches
     gl.bindVertexArray(carsVao);
-    
+
+    // Itera sobre cada coche
     cars.forEach((car) => {
-        // Create the matrix transformations for the cars
+        // Crea las transformaciones
         const carTrans = twgl.v3.create(...car.position);
         const carScale = twgl.v3.create(...car.scale);
-        
-        // Calculate the car's matrix
+
+        // Calcula la matriz de modelo
         car.matrix = twgl.m4.translate(viewProjectionMatrix, carTrans);
         car.matrix = twgl.m4.rotateX(car.matrix, car.rotation[0]);
         car.matrix = twgl.m4.rotateY(car.matrix, car.rotation[1]);
         car.matrix = twgl.m4.rotateZ(car.matrix, car.rotation[2]);
         car.matrix = twgl.m4.scale(car.matrix, carScale);
-        
+
         // Define los uniformes específicos del modelo
         let modelUniforms = {
             u_matrix: car.matrix,
+            u_ambientColor: car.ambientColor,
+            u_diffuseColor: car.diffuseColor,
+            u_specularColor: car.specularColor,
         };
-        
+
         // Combina los uniformes globales y específicos
         let allUniforms = Object.assign({}, globalUniforms, modelUniforms);
-        
+
         // Establece los uniformes y dibuja
         twgl.setUniforms(programInfo, allUniforms);
         twgl.drawBufferInfo(gl, carsBufferInfo);
@@ -796,7 +867,10 @@ function parseOBJ(objText) {
         indices: { data: indices },
     };
 }
-function generateData(size, type) {
+function generateData(size, type, color = [1.0, 1.0, 1.0, 1.0]) {
+    const scale = type === 'roads'
+    ? [2.0, 0.1, 4.0] // Escala para las carreteras
+    : [1.0, 1.0, 1.0]; // Escala genérica para otros objetos
     let arrays =
     {
         a_position: {
@@ -837,8 +911,12 @@ function generateData(size, type) {
                  -0.5, -0.5,  0.5,
                  -0.5,  0.5,  0.5,
                  -0.5,  0.5, -0.5
-                ].map(e => size * e)
+                ].map((e, index) => {
+                    // Escala cada coordenada según su posición en X, Y o Z
+                    return e * size * scale[index % 3];
+                })
             },
+            
         a_normal: {
                 numComponents: 3,
                 data: type === 'buildings' ? [
@@ -872,6 +950,7 @@ function generateData(size, type) {
                   -1, 0, 0,
                   -1, 0, 0,
                   -1, 0, 0,
+                  
                 ] : type === 'roads' ? [
                     // Todas las normales para roads
                     0, 1, 0, // Reemplaza con las normales apropiadas
@@ -902,8 +981,9 @@ function generateData(size, type) {
                   12, 13, 14,   12, 14, 15, // Bottom face
                   16, 17, 18,   16, 18, 19, // Right face
                   20, 21, 22,   20, 22, 23  // Left face
-                ]
+                ], 
             }
+            
     };
     return arrays;
 }

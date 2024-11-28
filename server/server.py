@@ -71,10 +71,22 @@ def getCars():
                         "dir": agent.direction,
                         "z": agent.pos[1]
                     })
+
+            trafficLights = []
+            for agent in cityModel.schedule.agents:
+                if isinstance(agent, TrafficLight):
+                    trafficLights.append({
+                        "id": str(agent.unique_id),
+                        "x": agent.pos[0],
+                        "y": 1,
+                        "z": agent.pos[1],
+                        "state": agent.state
+                    })
                     
 
             return jsonify({
-                "cars": carPositions
+                "cars": carPositions,
+                "trafficLights": trafficLights
             })
 
         except Exception as e:

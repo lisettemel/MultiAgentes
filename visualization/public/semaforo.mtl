@@ -1,7 +1,7 @@
 # Blender 4.2.3 LTS MTL File: 'semaforo.blend'
 # www.blender.org
 
-newmtl Material.031
+newmtl Material.038
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Kd 0.011810 0.800007 0.029930
@@ -11,7 +11,7 @@ Ni 1.500000
 d 1.000000
 illum 2
 
-newmtl Material.032
+newmtl Material.039
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Kd 0.800007 0.697836 0.030269
@@ -21,7 +21,7 @@ Ni 1.500000
 d 1.000000
 illum 2
 
-newmtl Material.033
+newmtl Material.040
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Kd 0.800007 0.024434 0.025406
