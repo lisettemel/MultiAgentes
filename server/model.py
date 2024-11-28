@@ -30,6 +30,7 @@ class CityModel(Model):
         self.destinations = []
         self.cars_count = 0
         self.step_count = 0
+        self.arrived_cars = 0
         self.all_paths = {}
 
         # Load the map file. The map file is a text file where each character represents an agent.

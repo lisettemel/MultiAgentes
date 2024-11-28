@@ -209,6 +209,7 @@ class Car(Agent):
                     return
             next_move = self.path.pop(0)
             self.model.grid.move_agent(self, next_move)
+            self.model.arrived_cars += 1
         else:
             self.model.grid.remove_agent(self)
             self.model.schedule.remove(self)

@@ -18,6 +18,8 @@ const colorPalette = [
     // "#E74C3C"  
 ];
 
+const pause = false;
+
 //  Convertir la paleta de colores a formato RGB normalizado
 const normalizedColorPalette = colorPalette.map(hex => hexToRGBA(hex));
 
@@ -173,7 +175,16 @@ function setupWorldView(gl) {
 async function updateScene() {
     try {
         // Send a request to the server to update the cars positions
-        let response = await fetch(agent_server_uri + "update") 
+        let response = await fetch(agent_server_uri + "update")
+        let result = await response.json()
+
+        const current = document.querySelector("#current");
+        const total = document.querySelector("#arrived");
+        const step = document.querySelector("#step");
+
+        total.textContent = result.total;
+        current.textContent = cars.length;
+        step.textContent = result.step;
     
         // Check if the response was successful
         if(response.ok){
@@ -227,7 +238,7 @@ async function drawScene(gl) {
     frameCount++;
     
     // Actualiza la escena cada 30 frames
-    if (frameCount % 30 === 0) {
+    if (frameCount % 30 === 0 && !pause) {
         frameCount = 0;
         await updateScene();
     }
